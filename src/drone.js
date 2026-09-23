@@ -11,7 +11,7 @@ const SETTINGS = {
   maxAltitude: 450,
 };
 
-export function createDrone({ camera, domElement, groundHeight }) {
+export function createDrone({ camera, domElement, groundHeight, touchControls = null }) {
   const state = {
     position: new THREE.Vector3(0, 40, 150),
     velocity: new THREE.Vector3(),
@@ -165,6 +165,18 @@ export function createDrone({ camera, domElement, groundHeight }) {
       return;
     }
 
+    if (touchControls && state.enabled) {
+      const { dx, dy } = touchControls.consumeLookDeltas();
+      if (dx !== 0 || dy !== 0) {
+        state.yaw -= dx * SETTINGS.mouseSensitivity * 1.35;
+        state.pitch = THREE.MathUtils.clamp(
+          state.pitch - dy * SETTINGS.mouseSensitivity * 1.35,
+          -1.35,
+          1.35,
+        );
+      }
+    }
+
     _forward.set(-Math.sin(state.yaw), 0, -Math.cos(state.yaw));
     _right.set(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
     _wish.set(0, 0, 0);
@@ -176,6 +188,16 @@ export function createDrone({ camera, domElement, groundHeight }) {
       if (keys.has('KeyA') || keys.has('ArrowLeft')) _wish.sub(_right);
       if (keys.has('Space') || keys.has('Tab') || keys.has('KeyE')) _wish.y += 1;
       if (keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyQ')) _wish.y -= 1;
+
+      if (touchControls) {
+        const ts = touchControls.state;
+        if (ts.moveX !== 0 || ts.moveY !== 0) {
+          _wish.addScaledVector(_forward, ts.moveY);
+          _wish.addScaledVector(_right, ts.moveX);
+        }
+        if (ts.up) _wish.y += 1;
+        if (ts.down) _wish.y -= 1;
+      }
     }
 
     const input = _wish.length();

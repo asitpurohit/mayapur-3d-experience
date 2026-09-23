@@ -29,6 +29,7 @@ export function createPlayer({
   groundHeight = groundHeightAt,
   colliders = [],
   thirdPerson = false,
+  touchControls = null,
 }) {
   const cam = {
     dist: 3.6,
@@ -85,6 +86,18 @@ export function createPlayer({
   }
 
   function update(dt) {
+    if (touchControls && state.enabled) {
+      const { dx, dy } = touchControls.consumeLookDeltas();
+      if (dx !== 0 || dy !== 0) {
+        state.camYaw -= dx * SETTINGS.mouseSensitivity * 1.35;
+        state.camPitch = THREE.MathUtils.clamp(
+          state.camPitch - dy * SETTINGS.mouseSensitivity * 1.35,
+          -1.35,
+          1.35,
+        );
+      }
+    }
+
     const forward = new THREE.Vector3(-Math.sin(state.camYaw), 0, -Math.cos(state.camYaw));
     const right = new THREE.Vector3(Math.cos(state.camYaw), 0, -Math.sin(state.camYaw));
 
@@ -107,7 +120,17 @@ export function createPlayer({
         wishX -= right.x;
         wishZ -= right.z;
       }
-      if (keys.has('Space') && state.grounded) {
+
+      if (touchControls) {
+        const ts = touchControls.state;
+        if (ts.moveX !== 0 || ts.moveY !== 0) {
+          wishX += forward.x * ts.moveY + right.x * ts.moveX;
+          wishZ += forward.z * ts.moveY + right.z * ts.moveX;
+        }
+      }
+
+      const wantJump = keys.has('Space') || (touchControls && touchControls.state.jump);
+      if (wantJump && state.grounded) {
         state.velocity.y = SETTINGS.jumpVelocity;
         state.grounded = false;
       }
@@ -121,7 +144,10 @@ export function createPlayer({
       state.heading += shortestAngle(state.heading, targetHeading) * Math.min(1, dt * 10);
     }
 
-    const running = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    const running =
+      keys.has('ShiftLeft') ||
+      keys.has('ShiftRight') ||
+      (touchControls && touchControls.state.sprint);
     const targetSpeed = len > 0 ? (running ? SETTINGS.runSpeed : SETTINGS.walkSpeed) : 0;
 
     const velX = state.velocity.x;

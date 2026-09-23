@@ -14,6 +14,7 @@ import { buildPath } from './path.js';
 import { createHud } from './hud.js';
 import { createDrone } from './drone.js';
 import { createYouTubeMusic } from './youtube.js';
+import { createTouchControls } from './touch-controls.js';
 import { loadGlbModels, glbHelpText } from './glb.js';
 import { buildEntrance, entranceHeightAt, getTempleColliders, ENTRANCE, insideTempleFootprint } from './entrance.js';
 import { prepareWalkableMeshes, sampleWalkFloor } from './walkable.js';
@@ -28,6 +29,7 @@ let world = null;
 let player = null;
 let drone = null;
 let env = null;
+let touchControls = null;
 let animated = [];
 
 const WALK_STATUS = '[WASD] walk · [Shift] run · [Space] jump · [Esc] pause';
@@ -382,6 +384,8 @@ async function boot() {
     return meshY > base ? meshY : base;
   };
 
+  touchControls = createTouchControls({ onPause: () => pause() });
+
   const spawnY = groundHeight(ENTRANCE.doorX, ENTRANCE.stairs.zBottom + 8, ENTRANCE.temple.minY);
   player = createPlayer({
     camera,
@@ -390,12 +394,13 @@ async function boot() {
     groundHeight,
     colliders: getTempleColliders(),
     thirdPerson: !!avatar,
+    touchControls,
   });
   player.state.position.y = spawnY;
   player.state.camYaw = 0;
   player.state.camPitch = 0.05;
 
-  drone = createDrone({ camera, domElement: canvas, groundHeight });
+  drone = createDrone({ camera, domElement: canvas, groundHeight, touchControls });
 
   const top = findRidgeTop();
 
@@ -417,11 +422,16 @@ async function boot() {
   };
   window.__hill.drone = drone;
 
+  const isTouch = touchControls.isTouchDevice;
+  const controlsHtml = isTouch
+    ? `<ul class="controls"><li><b>Left Thumb</b> &mdash; virtual joystick to move / fly</li><li><b>Right Thumb</b> &mdash; drag to look around</li><li><b>Buttons</b> &mdash; ⤒ jump / ⚡ sprint &middot; ▲ up / ▼ down</li><li><b>⏸ Pause</b> &mdash; pause button at top-left</li></ul>`
+    : `<ul class="controls"><li><b>Walk</b> &mdash; W A S D walk &middot; Shift run &middot; Space jump</li><li><b>Drone</b> &mdash; W A S D fly &middot; Space / Tab rise &middot; Shift descend</li><li><b>Mouse</b> look &middot; click to capture cursor &middot; Esc pauses</li></ul>`;
+
   hud.setButtonEnabled(true);
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
-    `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p><ul class="controls"><li><b>Walk</b> &mdash; W A S D walk &middot; Shift run &middot; Space jump</li><li><b>Drone</b> &mdash; W A S D fly &middot; Space / Tab rise &middot; Shift descend</li><li><b>Mouse</b> look &middot; click to capture cursor &middot; Esc pauses</li></ul><p class="note">${avatar ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`,
+    `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>${controlsHtml}<p class="note">${avatar ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`,
     'Enter Temple',
     { modeChoice: true },
   );
@@ -513,10 +523,16 @@ function startPlay(kind, { resume = false } = {}) {
     hud.setStatus(WALK_STATUS);
   }
 
+  if (touchControls) {
+    touchControls.setMode(kind);
+    touchControls.setVisible(true);
+  }
+
   requestPointerLock(canvas);
 }
 
 function requestPointerLock(element) {
+  if (touchControls && touchControls.isTouchDevice) return;
   const result = element.requestPointerLock();
   if (result && typeof result.catch === 'function') result.catch(() => {});
 }
@@ -560,6 +576,7 @@ function pause() {
   phase = 'paused';
   player.state.enabled = false;
   drone.deactivate();
+  if (touchControls) touchControls.setVisible(false);
   const body =
     mode === 'drone'
       ? '<p>The drone is hovering. Press Resume to keep flying.</p>'
@@ -582,6 +599,7 @@ hud.onDrone(() => {
 });
 
 document.addEventListener('pointerlockchange', () => {
+  if (touchControls && touchControls.isTouchDevice) return;
   if (document.pointerLockElement !== canvas && phase === 'playing') pause();
 });
 
