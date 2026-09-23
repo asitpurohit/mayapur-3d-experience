@@ -33,6 +33,73 @@ let animated = [];
 const WALK_STATUS = '[WASD] walk · [Shift] run · [Space] jump · [Esc] pause';
 const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mouse] look · [Esc] pause';
 
+function createTempleFlag(scene, templeRoot) {
+  if (!templeRoot) return null;
+  const bounds = new THREE.Box3().setFromObject(templeRoot);
+  if (!Number.isFinite(bounds.max.y)) return null;
+  const center = bounds.getCenter(new THREE.Vector3());
+  const group = new THREE.Group();
+  group.name = 'iskcon-mayapur-flag';
+  group.position.set(center.x, 0, center.z);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#e2a33a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#7c2e22';
+  ctx.lineWidth = 14;
+  ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+  ctx.fillStyle = '#6e241d';
+  ctx.font = 'bold 82px Georgia, serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('ISKCON MAYAPUR', canvas.width / 2, canvas.height / 2 + 4);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+
+  const flagWidth = 84;
+  const flagHeight = 24;
+  const flagGeometry = new THREE.PlaneGeometry(flagWidth, flagHeight, 36, 12);
+  const flagPositions = flagGeometry.attributes.position;
+  const baseVertices = [];
+  for (let i = 0; i < flagPositions.count; i++) {
+    const x = flagPositions.getX(i) + flagWidth / 2;
+    const y = flagPositions.getY(i);
+    baseVertices.push({ x, y });
+    flagPositions.setX(i, x);
+  }
+  const flagMaterial = new THREE.MeshStandardMaterial({
+    map: texture,
+    side: THREE.DoubleSide,
+    roughness: 0.8,
+    metalness: 0.02,
+  });
+  const flag = new THREE.Mesh(flagGeometry, flagMaterial);
+  // Lower edge meets the temple's highest dome point.
+  flag.position.set(0, bounds.max.y + flagHeight / 2, 0);
+  flag.castShadow = true;
+  flag.receiveShadow = true;
+  group.add(flag);
+  scene.add(group);
+
+  let elapsed = 0;
+  return (dt) => {
+    elapsed += dt;
+    for (let i = 0; i < flagPositions.count; i++) {
+      const vertex = baseVertices[i];
+      const normalizedX = vertex.x / flagWidth;
+      const wave = Math.sin(elapsed * 3.4 + normalizedX * 7.5 + vertex.y * 0.35)
+        * 2.7 * normalizedX;
+      flagPositions.setXYZ(i, vertex.x, vertex.y, wave);
+    }
+    flagPositions.needsUpdate = true;
+    flagGeometry.computeVertexNormals();
+  };
+}
+
 function createRenderer() {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));

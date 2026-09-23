@@ -844,10 +844,52 @@ function makeCruiseShip() {
   mast.castShadow = true;
   ship.add(mast);
 
+  // Half-size floating ISKCON MAYAPUR flag, attached to the ship itself.
+  const flagCanvas = document.createElement('canvas');
+  flagCanvas.width = 1024;
+  flagCanvas.height = 256;
+  const flagCtx = flagCanvas.getContext('2d');
+  flagCtx.fillStyle = '#e2a33a';
+  flagCtx.fillRect(0, 0, flagCanvas.width, flagCanvas.height);
+  flagCtx.strokeStyle = '#7c2e22';
+  flagCtx.lineWidth = 14;
+  flagCtx.strokeRect(8, 8, flagCanvas.width - 16, flagCanvas.height - 16);
+  flagCtx.fillStyle = '#6e241d';
+  flagCtx.font = 'bold 82px Georgia, serif';
+  flagCtx.textAlign = 'center';
+  flagCtx.textBaseline = 'middle';
+  flagCtx.fillText('ISKCON MAYAPUR', flagCanvas.width / 2, flagCanvas.height / 2 + 4);
+  const flagTexture = new THREE.CanvasTexture(flagCanvas);
+  flagTexture.colorSpace = THREE.SRGBColorSpace;
+  const flagWidth = 42;
+  const flagHeight = 12;
+  const flagGeometry = new THREE.PlaneGeometry(flagWidth, flagHeight, 24, 8);
+  const flagPositions = flagGeometry.attributes.position;
+  const flagVertices = [];
+  for (let i = 0; i < flagPositions.count; i++) {
+    const x = flagPositions.getX(i) + flagWidth / 2;
+    const y = flagPositions.getY(i);
+    flagVertices.push({ x, y });
+    flagPositions.setX(i, x);
+  }
+  const flag = new THREE.Mesh(
+    flagGeometry,
+    new THREE.MeshStandardMaterial({ map: flagTexture, side: THREE.DoubleSide, roughness: 0.8 }),
+  );
+  // The lower edge touches the ship's 100 m superstructure height.
+  flag.position.set(-20, 100 + flagHeight / 2, 0);
+  flag.castShadow = true;
+  ship.add(flag);
+  ship.userData.flag = { geometry: flagGeometry, positions: flagPositions, vertices: flagVertices, elapsed: 0 };
+
   ship.userData.bobPhase = Math.random() * Math.PI * 2;
-  ship.userData.progress = 0.12;
-  ship.userData.speed = 0.55;
-  ship.userData.laneZ = 78;
+  // Near Ganga lane, visually behind the temple.
+  ship.userData.progress = 0.44;
+  ship.userData.minProgress = 0.43;
+  ship.userData.maxProgress = 0.57;
+  ship.userData.direction = 1;
+  ship.userData.speed = 25;
+  ship.userData.laneZ = 104;
   return ship;
 }
 
@@ -933,15 +975,23 @@ function makeRiver() {
       boat.position.set(point.x, RIVER.y + 0.12 + Math.sin(elapsed * 1.25 + boat.userData.bobPhase) * 0.035, point.z + boat.userData.laneZ);
       boat.rotation.y = Math.sin(elapsed * 0.42 + boat.userData.bobPhase) * 0.025;
     }
-    cruiseShip.userData.progress += cruiseShip.userData.speed * dt / (RIVER.endX - RIVER.startX);
-    if (cruiseShip.userData.progress > 1.04) cruiseShip.userData.progress = -0.04;
+    cruiseShip.userData.progress += cruiseShip.userData.direction
+      * cruiseShip.userData.speed * dt / (RIVER.endX - RIVER.startX);
+    if (cruiseShip.userData.progress >= cruiseShip.userData.maxProgress) {
+      cruiseShip.userData.progress = cruiseShip.userData.maxProgress;
+      cruiseShip.userData.direction = -1;
+    } else if (cruiseShip.userData.progress <= cruiseShip.userData.minProgress) {
+      cruiseShip.userData.progress = cruiseShip.userData.minProgress;
+      cruiseShip.userData.direction = 1;
+    }
     const shipPoint = riverPath(cruiseShip.userData.progress);
     cruiseShip.position.set(
       shipPoint.x,
       RIVER.y + Math.sin(elapsed * 0.8 + cruiseShip.userData.bobPhase) * 0.04,
       shipPoint.z + cruiseShip.userData.laneZ,
     );
-    cruiseShip.rotation.y = Math.sin(elapsed * 0.25 + cruiseShip.userData.bobPhase) * 0.012;
+    cruiseShip.rotation.y = cruiseShip.userData.direction < 0 ? Math.PI : 0;
+    cruiseShip.rotation.z = Math.sin(elapsed * 0.25 + cruiseShip.userData.bobPhase) * 0.012;
   };
   return group;
 }
