@@ -591,6 +591,142 @@ function makeGroundPlane() {
   return mesh;
 }
 
+function makeHelicopter() {
+  const root = new THREE.Group();
+  root.name = 'helicopter';
+
+  const body = new THREE.Group();
+  root.add(body);
+
+  const paint = new THREE.MeshStandardMaterial({ color: 0x35566b, roughness: 0.45, metalness: 0.35 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0xe8edf0, roughness: 0.5, metalness: 0.1 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1e2b33, roughness: 0.7, metalness: 0.2 });
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0xa9d7ea,
+    roughness: 0.12,
+    metalness: 0.45,
+    transparent: true,
+    opacity: 0.72,
+  });
+
+  // Cabin and cockpit glass, nose pointing along +Z.
+  const cabin = new THREE.Mesh(new THREE.CapsuleGeometry(1.45, 3.6, 6, 14), paint);
+  cabin.rotation.x = Math.PI / 2;
+  body.add(cabin);
+
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.3, 16, 12), glass);
+  canopy.position.set(0, 0.1, 2.5);
+  canopy.scale.set(1, 0.9, 1.12);
+  body.add(canopy);
+
+  const belly = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.3, 5.2), trim);
+  belly.position.set(0, -0.95, 0.2);
+  body.add(belly);
+
+  // Tail boom, stabilisers and tail rotor.
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 7.2, 10), paint);
+  boom.rotation.x = Math.PI / 2;
+  boom.position.set(0, 0.25, -6.6);
+  body.add(boom);
+
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.9, 1.5), paint);
+  fin.position.set(0, 0.95, -10.1);
+  body.add(fin);
+
+  const tailPlane = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.14, 0.9), trim);
+  tailPlane.position.set(0, 0.35, -9.6);
+  body.add(tailPlane);
+
+  const tailRotor = new THREE.Group();
+  tailRotor.position.set(0.32, 1.05, -10.2);
+  tailRotor.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 2.0, 0.16), dark));
+  tailRotor.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 2.0), dark));
+  body.add(tailRotor);
+
+  // Mast and four-blade main rotor.
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.9, 8), dark);
+  mast.position.set(0, 2.35, 0.1);
+  body.add(mast);
+
+  const mainRotor = new THREE.Group();
+  mainRotor.position.set(0, 2.75, 0.1);
+  mainRotor.add(new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.22, 10), dark));
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2;
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.07, 0.4), dark);
+    blade.position.set(Math.cos(a) * 3.6, 0, -Math.sin(a) * 3.6);
+    blade.rotation.y = a;
+    mainRotor.add(blade);
+  }
+  body.add(mainRotor);
+
+  // Landing skids.
+  for (const side of [-1, 1]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 5.4), dark);
+    rail.position.set(side * 1.35, -2.25, 0.2);
+    body.add(rail);
+    for (const z of [-1.7, 1.7]) {
+      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.0, 0.12), dark);
+      strut.position.set(side * 1.35, -1.75, z);
+      strut.rotation.z = side * -0.18;
+      body.add(strut);
+    }
+  }
+
+  root.userData = {
+    body,
+    mainRotor,
+    tailRotor,
+    mode: 'waiting',
+    timer: 10 + Math.random() * 20,
+    progress: 0,
+    speed: 0,
+    distance: 1,
+    start: new THREE.Vector3(),
+    end: new THREE.Vector3(),
+  };
+  return root;
+}
+
+function updateHelicopter(helicopter, dt, elapsed) {
+  const h = helicopter.userData;
+  h.mainRotor.rotation.y += dt * 26;
+  h.tailRotor.rotation.x += dt * 44;
+
+  if (h.mode === 'waiting') {
+    h.timer -= dt;
+    if (h.timer > 0) return;
+
+    // A random crossing: either direction, random altitude, lane and drift.
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const y = 92 + Math.random() * 58;
+    const z = -260 + Math.random() * 440;
+    h.start.set(-dir * 680, y, z);
+    h.end.set(dir * 680, y + (Math.random() * 2 - 1) * 24, z + (Math.random() * 2 - 1) * 70);
+    h.distance = Math.max(1, h.start.distanceTo(h.end));
+    h.speed = 32 + Math.random() * 14;
+    h.progress = 0;
+    h.mode = 'flying';
+    helicopter.position.copy(h.start);
+    helicopter.lookAt(h.end);
+    helicopter.visible = true;
+    return;
+  }
+
+  h.progress += (h.speed * dt) / h.distance;
+  if (h.progress >= 1) {
+    h.mode = 'waiting';
+    h.timer = 35 + Math.random() * 55;
+    helicopter.visible = false;
+    return;
+  }
+
+  helicopter.position.lerpVectors(h.start, h.end, h.progress);
+  h.body.position.y = Math.sin(elapsed * 1.4) * 0.5;
+  h.body.rotation.z = Math.sin(elapsed * 1.1) * 0.055;
+  h.body.rotation.x = Math.sin(elapsed * 0.8 + 1.7) * 0.03;
+}
+
 
 const RIVER = {
   startX: -1300,
@@ -1097,6 +1233,10 @@ export function createEnvironment({ scene }) {
   const birds = makeBirdFlock();
   scene.add(birds);
 
+  const helicopter = makeHelicopter();
+  helicopter.visible = false;
+  scene.add(helicopter);
+
   const rain = makeRain();
   // Clear, peaceful morning sunrise: rain is invisible (clear sky dawn)
   rain.material.opacity = 0.0;
@@ -1190,6 +1330,7 @@ export function createEnvironment({ scene }) {
   function update(dt, camera = null) {
     sunElapsed += dt;
     birds.userData.update(dt);
+    updateHelicopter(helicopter, dt, sunElapsed);
 
     // Every session begins in either clear or wet weather. It then alternates
     // on a slightly random cadence: clear skies typically last about 30 sec.
@@ -1349,5 +1490,5 @@ export function createEnvironment({ scene }) {
     }
   }
 
-  return { sky, clouds, stormClouds, rain, birds, river, sun, hemi, sunDisc, activateWeather, update, getStormDuck: () => stormDuck };
+  return { sky, clouds, stormClouds, rain, birds, helicopter, river, sun, hemi, sunDisc, activateWeather, update, getStormDuck: () => stormDuck };
 }
