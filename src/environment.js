@@ -607,6 +607,8 @@ function smoothstepLocal(edge0, edge1, x) {
 }
 
 let thunderContext = null;
+let rainAudio = null;
+let lastRainAudioLevel = -1;
 
 function armThunder() {
   const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -616,28 +618,79 @@ function armThunder() {
   return thunderContext;
 }
 
-function playThunder() {
+function playThunder({ volume = 0.19, cutoff = 170, duration = 1.9, decay = 1.7 } = {}) {
   const audio = armThunder();
   if (!audio) return;
   const now = audio.currentTime;
-  const buffer = audio.createBuffer(1, audio.sampleRate * 1.9, audio.sampleRate);
+  const buffer = audio.createBuffer(1, audio.sampleRate * duration, audio.sampleRate);
   const samples = buffer.getChannelData(0);
   for (let i = 0; i < samples.length; i++) {
     const t = i / audio.sampleRate;
-    samples[i] = (Math.random() * 2 - 1) * Math.exp(-t * 1.7);
+    samples[i] = (Math.random() * 2 - 1) * Math.exp(-t * decay);
   }
   const noise = audio.createBufferSource();
   noise.buffer = buffer;
   const lowpass = audio.createBiquadFilter();
   lowpass.type = 'lowpass';
-  lowpass.frequency.setValueAtTime(170, now);
+  lowpass.frequency.setValueAtTime(cutoff, now);
   const gain = audio.createGain();
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.19, now + 0.05);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.9);
+  gain.gain.exponentialRampToValueAtTime(volume, now + 0.05);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
   noise.connect(lowpass).connect(gain).connect(audio.destination);
   noise.start(now);
-  noise.stop(now + 1.95);
+  noise.stop(now + duration + 0.05);
+}
+
+// Steady rain hiss: looping filtered noise whose gain follows the rain amount.
+function makeRainLoop(audio) {
+  const length = Math.floor(audio.sampleRate * 4);
+  const buffer = audio.createBuffer(1, length, audio.sampleRate);
+  const samples = buffer.getChannelData(0);
+  let brown = 0;
+  for (let i = 0; i < length; i++) {
+    brown = (brown + 0.04 * (Math.random() * 2 - 1)) / 1.04;
+    samples[i] = brown * 3.4;
+  }
+  // Crossfade the tail into the head so the loop point is inaudible.
+  const fade = Math.floor(audio.sampleRate * 0.05);
+  for (let i = 0; i < fade; i++) {
+    const t = i / fade;
+    const tail = length - fade + i;
+    samples[tail] = samples[tail] * (1 - t) + samples[i] * t;
+  }
+
+  const source = audio.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  const highpass = audio.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = 420;
+  const lowpass = audio.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = 5200;
+
+  const gain = audio.createGain();
+  gain.gain.value = 0;
+
+  source.connect(highpass).connect(lowpass).connect(gain).connect(audio.destination);
+  source.start();
+  return { source, gain };
+}
+
+function armRainAudio() {
+  const audio = armThunder();
+  if (!audio || rainAudio) return;
+  rainAudio = makeRainLoop(audio);
+}
+
+function setRainAudioLevel(amount) {
+  if (!rainAudio) return;
+  if (Math.abs(amount - lastRainAudioLevel) < 0.01) return;
+  lastRainAudioLevel = amount;
+  const gain = rainAudio.gain.gain;
+  gain.setTargetAtTime(amount * 0.075, rainAudio.source.context.currentTime, 0.8);
 }
 
 // Centre line: dead straight, running left to right past the city.
@@ -1069,6 +1122,8 @@ export function createEnvironment({ scene }) {
   let weatherPhaseElapsed = 0;
   let weatherPhaseDuration = startsStormy ? 26 + Math.random() * 14 : 28 + Math.random() * 10;
   let thunderPlayed = !startsStormy;
+  let thunderTimer = 3 + Math.random() * 4;
+  let stormDuck = 0;
   let lightningStartedAt = -Infinity;
   // Azimuth: 32 deg to the left of the forward view towards the temple (-Z)
   const azimuthRad = THREE.MathUtils.degToRad(32);
@@ -1100,9 +1155,10 @@ export function createEnvironment({ scene }) {
   function activateWeather() {
     if (weatherEnabled) return;
     weatherEnabled = true;
-    // Initialise audio during the Walk/Drone button gesture so thunder can
-    // play later when the automatic storm reaches the scene.
+    // Initialise audio during the Walk/Drone button gesture so thunder and
+    // rain can play later when the automatic storm reaches the scene.
     armThunder();
+    armRainAudio();
   }
 
   function update(dt, camera = null) {
@@ -1119,6 +1175,7 @@ export function createEnvironment({ scene }) {
         weatherPhaseDuration = stormTarget ? 26 + Math.random() * 16 : 28 + Math.random() * 10;
         if (stormTarget) {
           thunderPlayed = false;
+          thunderTimer = 3 + Math.random() * 4;
           lightningStartedAt = -Infinity;
         }
       }
@@ -1128,11 +1185,27 @@ export function createEnvironment({ scene }) {
     const stormCover = weatherEnabled ? stormLevel : 0;
     const cloudArrival = smoothstepLocal(0.06, 0.62, stormCover);
     const rainAmount = smoothstepLocal(0.48, 0.9, stormCover);
+    // Ramps up early in the storm so the first thunder is not masked by music.
+    stormDuck = cloudArrival;
     if (!thunderPlayed && stormTarget && weatherPhaseElapsed >= 0.8 && stormCover >= 0.5) {
       thunderPlayed = true;
       lightningStartedAt = sunElapsed;
       playThunder();
     }
+    // Distant rumbles roll through for as long as the rain is falling.
+    if (weatherEnabled && stormTarget && rainAmount > 0.3) {
+      thunderTimer -= dt;
+      if (thunderTimer <= 0) {
+        thunderTimer = 5 + Math.random() * 11;
+        playThunder({
+          volume: 0.08 + Math.random() * 0.11,
+          cutoff: 90 + Math.random() * 150,
+          duration: 2.2 + Math.random() * 1.4,
+          decay: 1.0 + Math.random() * 0.9,
+        });
+      }
+    }
+    setRainAudioLevel(rainAmount);
     const lightningAge = sunElapsed - lightningStartedAt;
     const lightning = lightningAge >= 0 && lightningAge < 0.75
       ? Math.max(0, 1 - lightningAge / 0.75) * (lightningAge < 0.12 ? 1 : 0.28)
@@ -1244,5 +1317,5 @@ export function createEnvironment({ scene }) {
     }
   }
 
-  return { sky, clouds, stormClouds, rain, birds, river, sun, hemi, sunDisc, activateWeather, update };
+  return { sky, clouds, stormClouds, rain, birds, river, sun, hemi, sunDisc, activateWeather, update, getStormDuck: () => stormDuck };
 }

@@ -772,6 +772,7 @@ let frameCount = 0;
 
 function stepSimulation(dt) {
   for (const fn of animated) fn(dt);
+  if (env) youtubeMusic.setDuck(env.getStormDuck());
   if (phase === 'menu') player.state.camYaw += dt * 0.03;
 
   const droneMode = mode === 'drone' && phase !== 'menu';

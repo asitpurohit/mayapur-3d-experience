@@ -147,39 +147,64 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
   }
 
   const SOOTHING_VOLUME = 28; // Serene ambient level, leaving 72% dynamic headroom for SFX
+  const DUCK_DEPTH = 0.65; // Kirtan eases down this much while a storm rolls through
   let currentVolume = SOOTHING_VOLUME;
+  let duckLevel = 0;
+  let lastAppliedVolume = -1;
+
+  function effectiveVolume(vol = currentVolume) {
+    return Math.max(0, Math.round(vol * (1 - DUCK_DEPTH * duckLevel)));
+  }
+
+  function applyPlayerVolume(v) {
+    if (v === lastAppliedVolume) return;
+    lastAppliedVolume = v;
+    if (player && typeof player.setVolume === 'function') {
+      player.setVolume(v);
+    }
+  }
 
   function setVolume(v) {
     currentVolume = Math.max(0, Math.min(100, Math.round(v)));
-    if (player && typeof player.setVolume === 'function') {
-      player.setVolume(currentVolume);
-    }
+    applyPlayerVolume(effectiveVolume());
   }
 
   function getVolume() {
     return currentVolume;
   }
 
+  // level 0 = clear skies (full music), 1 = full storm (music ducked).
+  function setDuck(level) {
+    const next = Math.max(0, Math.min(1, level));
+    if (Math.abs(next - duckLevel) < 0.01) return;
+    duckLevel = next;
+    applyPlayerVolume(effectiveVolume());
+  }
+
   function applyVolume(targetVol = currentVolume, { fade = true } = {}) {
     if (!player || typeof player.setVolume !== 'function') return;
     if (typeof player.unMute === 'function') player.unMute();
 
+    const target = effectiveVolume(targetVol);
+
     if (!fade) {
-      player.setVolume(targetVol);
+      applyPlayerVolume(target);
       return;
     }
 
     // Soft fade-in so kirtan eases in serenely without startling the devotee
     let v = 6;
+    lastAppliedVolume = v;
     player.setVolume(v);
-    const step = Math.max(1, (targetVol - v) / 8);
+    const step = Math.max(1, (target - v) / 8);
     const timer = setInterval(() => {
       v += step;
-      if (v >= targetVol) {
-        v = targetVol;
+      if (v >= target) {
+        v = target;
         clearInterval(timer);
       }
       if (player && typeof player.setVolume === 'function') {
+        lastAppliedVolume = Math.round(v);
         player.setVolume(Math.round(v));
       }
     }, 120);
@@ -253,5 +278,5 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     });
   }
 
-  return { play, pause, toggle, skip, setVolume, getVolume, pickNextTrackId };
+  return { play, pause, toggle, skip, setVolume, getVolume, setDuck, pickNextTrackId };
 }
