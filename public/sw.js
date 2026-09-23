@@ -11,7 +11,10 @@ const CACHE_PATTERNS = [
   /\.png(\?.*)?$/i,
   /\.jpg(\?.*)?$/i,
   /\.jpeg(\?.*)?$/i,
-  /\.webp(\?.*)?$/i
+  /\.webp(\?.*)?$/i,
+  /\.mp3(\?.*)?$/i,
+  /\.ogg(\?.*)?$/i,
+  /\.wav(\?.*)?$/i
 ];
 
 self.addEventListener('install', (event) => {

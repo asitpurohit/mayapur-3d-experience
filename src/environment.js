@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { valueNoise2 } from './noise.js';
 import { ENTRANCE } from './entrance.js';
+import { getAudioContext } from './audio.js';
 
 const SKY_TOP_DAWN = new THREE.Color(0x4f82be);
 const SKY_TOP_DAY = new THREE.Color(0x5690cf);
@@ -742,16 +743,16 @@ function smoothstepLocal(edge0, edge1, x) {
   return t * t * (3 - 2 * t);
 }
 
-let thunderContext = null;
 let rainAudio = null;
+let rainAudioUsesFile = false;
 let lastRainAudioLevel = -1;
 
+const RAIN_SYNTH_VOLUME = 0.075;
+const RAIN_FILE_VOLUME = 0.5;
+const RAIN_FILE_URL = '/audio/thunderstorm-ambience.mp3';
+
 function armThunder() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return null;
-  if (!thunderContext) thunderContext = new AudioContext();
-  if (thunderContext.state === 'suspended') thunderContext.resume().catch(() => {});
-  return thunderContext;
+  return getAudioContext();
 }
 
 function playThunder({ volume = 0.36, cutoff = 460, duration = 2.2, decay = 1.5, crack = 0.55 } = {}) {
@@ -844,7 +845,52 @@ function makeRainLoop(audio) {
 function armRainAudio() {
   const audio = armThunder();
   if (!audio || rainAudio) return;
+
+  // Synthesized hiss plays until the recorded ambience is decoded.
   rainAudio = makeRainLoop(audio);
+
+  fetch(RAIN_FILE_URL)
+    .then((response) => {
+      if (!response.ok) throw new Error(`ambience ${response.status}`);
+      return response.arrayBuffer();
+    })
+    .then((data) => new Promise((resolve, reject) => audio.decodeAudioData(data, resolve, reject)))
+    .then((buffer) => {
+      if (!rainAudio) return;
+      const next = makeRainFileLoop(audio, buffer);
+      const level = lastRainAudioLevel > 0 ? lastRainAudioLevel : 0;
+      next.gain.gain.value = level * RAIN_FILE_VOLUME;
+
+      const old = rainAudio;
+      rainAudio = next;
+      rainAudioUsesFile = true;
+
+      old.gain.gain.setTargetAtTime(0, audio.currentTime, 0.3);
+      setTimeout(() => {
+        try {
+          old.source.stop();
+        } catch {
+          // Already stopped.
+        }
+      }, 1600);
+    })
+    .catch(() => {
+      // Keep the synthesized rain if the recording cannot be loaded.
+    });
+}
+
+// Recorded thunderstorm ambience (compressed mp3), looped and faded with rain.
+function makeRainFileLoop(audio, buffer) {
+  const source = audio.createBufferSource();
+  source.buffer = buffer;
+  source.loop = true;
+
+  const gain = audio.createGain();
+  gain.gain.value = 0;
+
+  source.connect(gain).connect(audio.destination);
+  source.start();
+  return { source, gain };
 }
 
 function setRainAudioLevel(amount) {
@@ -852,7 +898,8 @@ function setRainAudioLevel(amount) {
   if (Math.abs(amount - lastRainAudioLevel) < 0.01) return;
   lastRainAudioLevel = amount;
   const gain = rainAudio.gain.gain;
-  gain.setTargetAtTime(amount * 0.075, rainAudio.source.context.currentTime, 0.8);
+  const volume = rainAudioUsesFile ? RAIN_FILE_VOLUME : RAIN_SYNTH_VOLUME;
+  gain.setTargetAtTime(amount * volume, rainAudio.source.context.currentTime, 0.8);
 }
 
 // Centre line: dead straight, running left to right past the city.
@@ -944,7 +991,7 @@ function makeWaterTexture() {
   return tex;
 }
 
-function makeRiverBoat(length, width, woodColor, seatColor) {
+export function makeRiverBoat(length, width, woodColor, seatColor) {
   const boat = new THREE.Group();
   boat.name = 'wooden-river-boat';
 

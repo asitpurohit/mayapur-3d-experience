@@ -12,7 +12,31 @@
 
     <div id="hud" class="hidden">
       <div id="stats" class="panel">-- fps · alt -- m</div>
+      <div id="gift-counter" class="panel hidden">🎁 0/11</div>
+      <div id="gift-hint" class="hidden"></div>
+      <div id="gift-prompt" class="hidden">
+        <button id="gift-open-btn" type="button">🎁 Open gift <span class="key">F</span></button>
+      </div>
+      <div id="boat-prompt" class="hidden">
+        <button id="boat-ride-btn" type="button">⛵ Ride boat <span class="key">F</span></button>
+      </div>
       <div id="status" class="panel">[WASD] walk · [Shift] run · [Space] jump · [Esc] pause</div>
+      <div id="gift-modal" class="hidden">
+        <div class="gift-card">
+          <div class="gift-icon">🎁</div>
+          <div id="gift-question"></div>
+          <div id="gift-options"></div>
+          <div id="gift-feedback"></div>
+        </div>
+      </div>
+      <div id="blessing-modal" class="hidden">
+        <div class="gift-card blessing">
+          <div class="gift-icon">🙏</div>
+          <h2>Blessing Received</h2>
+          <p>You found all 11 gifts hidden across Mayapur Dham. May Lord Narsimhadeva and Sri Chaitanya Mahaprabhu bless your journey.</p>
+          <button id="blessing-close" type="button">Continue exploring</button>
+        </div>
+      </div>
       <div class="hud-top-right">
         <button id="rotate-btn" class="panel mobile-only" title="Rotate to Landscape">🔄 Landscape</button>
         <button id="fullscreen-btn" class="panel" title="Toggle Fullscreen">⛶ Fullscreen</button>

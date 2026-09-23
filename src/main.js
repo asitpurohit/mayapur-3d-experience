@@ -13,7 +13,9 @@ import { buildTempleGarden } from './temple-garden.js';
 import { buildPath } from './path.js';
 import { createHud } from './hud.js';
 import { createDrone } from './drone.js';
+import { createBoat } from './boat.js';
 import { createYouTubeMusic } from './youtube.js';
+import { createGame } from './game.js';
 import { createTouchControls } from './touch-controls.js';
 import { loadGlbModels, glbHelpText } from './glb.js';
 import { buildEntrance, entranceHeightAt, getTempleColliders, ENTRANCE, insideTempleFootprint } from './entrance.js';
@@ -28,7 +30,10 @@ let mode = 'walk';
 let world = null;
 let player = null;
 let drone = null;
+let boat = null;
+let boatNear = false;
 let env = null;
+let game = null;
 let touchControls = null;
 let animated = [];
 let avatarObj = null;
@@ -36,6 +41,86 @@ let controlsHtmlStr = '';
 
 const WALK_STATUS = '[WASD] walk · [Shift] run · [Space] jump · [Esc] pause';
 const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mouse] look · [Esc] pause';
+const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pause';
+
+function menuBody() {
+  return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
+    <p class="note"><b>🎁 Gift Hunt — Drone view:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>
+    <p class="note"><b>⛵ Boat ride:</b> fly the drone to the ghat to find a boat you can ride on the Ganga with W A S D — one gift can only be reached by boat.</p>
+    ${controlsHtmlStr}
+    <p class="note">${avatarObj ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`;
+}
+
+function makePathTracker(points) {
+  const distances = [0];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    distances.push(distances[i - 1] + Math.hypot(b.x - a.x, b.z - a.z));
+  }
+  const length = distances[distances.length - 1];
+
+  const pointAt = (distance) => {
+    const d = ((distance % length) + length) % length;
+    let low = 0;
+    let high = distances.length - 1;
+    while (low + 1 < high) {
+      const mid = (low + high) >> 1;
+      if (distances[mid] <= d) low = mid;
+      else high = mid;
+    }
+    const span = distances[low + 1] - distances[low] || 1;
+    const t = (d - distances[low]) / span;
+    const a = points[low];
+    const b = points[low + 1];
+    return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
+  };
+
+  return { pointAt, length };
+}
+
+function makeLoopPath(build) {
+  const points = [];
+  const appendLine = (x, z, step = 2) => {
+    const start = points[points.length - 1];
+    const steps = Math.max(1, Math.ceil(Math.hypot(x - start.x, z - start.z) / step));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      points.push({ x: THREE.MathUtils.lerp(start.x, x, t), z: THREE.MathUtils.lerp(start.z, z, t) });
+    }
+  };
+  const appendArc = (cx, cz, from, to, radius = 24) => {
+    const steps = Math.max(8, Math.ceil((Math.abs(to - from) * radius) / 2));
+    for (let i = 1; i <= steps; i++) {
+      const angle = THREE.MathUtils.lerp(from, to, i / steps);
+      points.push({ x: cx + Math.cos(angle) * radius, z: cz + Math.sin(angle) * radius });
+    }
+  };
+  build({ points, appendLine, appendArc });
+  return makePathTracker(points);
+}
+
+function makeCirclePath(cx, cz, radius, samples = 120) {
+  const points = [];
+  for (let i = 0; i < samples; i++) {
+    const angle = (i / samples) * Math.PI * 2;
+    points.push({ x: cx + Math.cos(angle) * radius, z: cz + Math.sin(angle) * radius });
+  }
+  points.push({ ...points[0] });
+  return makePathTracker(points);
+}
+
+// Two-lane loop that stays entirely on a city asphalt street (city.js roads
+// are 14 wide, so lanes sit 3.5 either side of the centre line).
+function makeRoadLanePath(roadZ, x1, x2, lane = 3.5) {
+  return makeLoopPath(({ points, appendLine, appendArc }) => {
+    points.push({ x: x1, z: roadZ - lane });
+    appendLine(x2, roadZ - lane);
+    appendArc(x2, roadZ, -Math.PI / 2, Math.PI / 2, lane);
+    appendLine(x1, roadZ + lane);
+    appendArc(x1, roadZ, Math.PI / 2, Math.PI * 1.5, lane);
+  });
+}
 
 function createTempleFlag(scene, templeRoot) {
   if (!templeRoot) return null;
@@ -125,7 +210,7 @@ async function boot() {
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
-    '<p>Entering Mayapur Dham…</p>',
+    '<p>Entering Mayapur Dham…</p><p class="note">🎁 Gift Hunt: in Drone view, find 11 gifts hidden across Mayapur. Open each and answer a spiritual question to receive it.</p>',
     'Please wait',
   );
   hud.setButtonEnabled(false);
@@ -238,6 +323,18 @@ async function boot() {
       { object: leftFigure, side: -1, phase: 0 },
       { object: terrainFigure, side: 1, phase: 0 },
     ];
+    // Extra copies of the swaying figure so pilgrims meet them in other places.
+    const extraSpots = [
+      { x: -388, z: -198, heading: Math.PI, phase: 1.2 },
+      { x: 140, z: -20, heading: Math.PI / 2, phase: 2.7 },
+      { x: -146, z: 26, heading: 0, phase: 4.3 },
+    ];
+    const extraDancers = extraSpots.map((spot, i) => {
+      const figure = terrainFigure.clone(true);
+      figure.name = `terrain-figure-${i}`;
+      scene.add(figure);
+      return { object: figure, ...spot };
+    });
     const footOffset = terrainFigure.userData.footOffset || 0;
     let danceT = 0;
     animated.push((dt) => {
@@ -259,6 +356,21 @@ async function boot() {
         dancer.object.rotation.x = Math.sin(rhythm * 1.3) * 0.035;
         dancer.object.rotation.z = Math.sin(rhythm * 1.7) * 0.065;
       }
+      for (const dancer of extraDancers) {
+        const rhythm = danceT * 1.65 + dancer.phase;
+        const x = dancer.x + Math.sin(rhythm * 0.58) * 0.3;
+        const z = dancer.z + Math.cos(rhythm * 0.58) * 0.3;
+
+        dancer.object.position.set(
+          x,
+          groundHeightAt(x, z) + footOffset + Math.max(0, Math.sin(rhythm * 2.1)) * 0.14,
+          z,
+        );
+        const turn = (1 - Math.cos(rhythm * 0.9)) / 2;
+        dancer.object.rotation.y = dancer.heading + turn * 0.6;
+        dancer.object.rotation.x = Math.sin(rhythm * 1.3) * 0.035;
+        dancer.object.rotation.z = Math.sin(rhythm * 1.7) * 0.065;
+      }
     });
   }
 
@@ -268,98 +380,123 @@ async function boot() {
     const orbitFootOffset = terrainOrbit.userData.footOffset || 0;
     // The GLB is high-poly; skip its dynamic shadow-map passes so it does not
     // make walking controls stutter while it moves.
-    terrainOrbit.traverse((part) => {
-      if (part.isMesh) {
-        part.castShadow = false;
-        part.receiveShadow = false;
-      }
-    });
-    if (kirtanFollowers) {
-      kirtanFollowers.traverse((part) => {
+    const skipDynamicShadows = (root) => {
+      root.traverse((part) => {
         if (part.isMesh) {
           part.castShadow = false;
           part.receiveShadow = false;
         }
       });
-    }
+    };
+    skipDynamicShadows(terrainOrbit);
+    if (kirtanFollowers) skipDynamicShadows(kirtanFollowers);
     const followerFootOffset = kirtanFollowers?.userData.footOffset || 0;
 
     // A two-lane, left-side temple route with broad U-turns at both ends:
     // from beside the temple down the slope, then smoothly back uphill.
-    const rathPath = [{ x: -37, z: 106 }];
-    const appendLine = (x, z, step = 2) => {
-      const start = rathPath[rathPath.length - 1];
-      const steps = Math.max(1, Math.ceil(Math.hypot(x - start.x, z - start.z) / step));
-      for (let i = 1; i <= steps; i++) {
-        const t = i / steps;
-        rathPath.push({ x: THREE.MathUtils.lerp(start.x, x, t), z: THREE.MathUtils.lerp(start.z, z, t) });
+    const templePath = makeLoopPath(({ points, appendLine, appendArc }) => {
+      points.push({ x: -37, z: 106 });
+      appendLine(-37, 170);
+      appendArc(-61, 170, 0, Math.PI);
+      appendLine(-85, 106);
+      appendArc(-61, 106, Math.PI, Math.PI * 2);
+    });
+
+    // More roads where pilgrims meet the dancing devotees: the ghat
+    // riverbank, around the east village hamlet, and along a black asphalt
+    // street of the city (city.js roads sit at y = -3.60).
+    const ghatPath = makeLoopPath(({ points, appendLine, appendArc }) => {
+      points.push({ x: -460, z: -160 });
+      appendLine(-310, -160);
+      appendArc(-310, -174, Math.PI / 2, -Math.PI / 2, 14);
+      appendLine(-460, -188);
+      appendArc(-460, -174, -Math.PI / 2, -Math.PI * 1.5, 14);
+    });
+    const villagePath = makeCirclePath(128, -12, 46);
+    const blackRoadPath = makeRoadLanePath(245, -260, 260);
+
+    const processions = [
+      { rath: terrainOrbit, followers: kirtanFollowers, path: templePath, speed: 5, gap: 60, distance: 0 },
+    ];
+
+    // The rath stays only on its temple route. Elsewhere we copy just the
+    // dancing devotees, so pilgrims meet them moving along other roads.
+    const dancingCrowds = [
+      { name: 'ghat', path: ghatPath, speed: 4.2, offset: 0 },
+      { name: 'village', path: villagePath, speed: 4.6, offset: 60 },
+      { name: 'black-road-1', path: blackRoadPath, speed: 4.4, offset: 120, surfaceY: -3.6 },
+    ];
+
+    // Eight more dancing crowds far apart on the city's black asphalt streets.
+    const extraBlackRoadSegments = [
+      { z: -610, x1: -600, x2: -250 },
+      { z: -610, x1: 250, x2: 600 },
+      { z: -515, x1: -600, x2: -250 },
+      { z: -515, x1: 250, x2: 600 },
+      { z: 340, x1: -600, x2: -250 },
+      { z: 340, x1: 250, x2: 600 },
+      { z: 435, x1: -600, x2: -250 },
+      { z: 435, x1: 250, x2: 600 },
+    ];
+    extraBlackRoadSegments.forEach((segment, i) => {
+      dancingCrowds.push({
+        name: `black-road-${i + 2}`,
+        path: makeRoadLanePath(segment.z, segment.x1, segment.x2),
+        speed: 4 + (i % 3) * 0.3,
+        offset: (i * 95) % 480,
+        surfaceY: -3.6,
+      });
+    });
+
+    if (kirtanFollowers) {
+      for (const crowd of dancingCrowds) {
+        const followers = kirtanFollowers.clone(true);
+        followers.name = `kirtan-followers-${crowd.name}`;
+        scene.add(followers);
+        processions.push({
+          rath: null,
+          followers,
+          path: crowd.path,
+          speed: crowd.speed,
+          gap: 0,
+          distance: crowd.offset,
+          surfaceY: crowd.surfaceY,
+        });
       }
-    };
-    const appendArc = (cx, cz, from, to, radius = 24) => {
-      const steps = Math.max(8, Math.ceil(Math.abs(to - from) * radius / 2));
-      for (let i = 1; i <= steps; i++) {
-        const angle = THREE.MathUtils.lerp(from, to, i / steps);
-        rathPath.push({ x: cx + Math.cos(angle) * radius, z: cz + Math.sin(angle) * radius });
-      }
-    };
-    // Temple-side lane goes downhill; the lower arc turns onto the outer lane.
-    appendLine(-37, 170);
-    appendArc(-61, 170, 0, Math.PI);
-    appendLine(-85, 106);
-    // Upper arc makes a broad turn back toward the temple-side lane.
-    appendArc(-61, 106, Math.PI, Math.PI * 2);
-    const pathDistances = [0];
-    for (let i = 1; i < rathPath.length; i++) {
-      const a = rathPath[i - 1];
-      const b = rathPath[i];
-      pathDistances.push(pathDistances[i - 1] + Math.hypot(b.x - a.x, b.z - a.z));
     }
-    const pathLength = pathDistances[pathDistances.length - 1];
-    const pointOnPath = (distance) => {
-      const d = ((distance % pathLength) + pathLength) % pathLength;
-      let low = 0;
-      let high = pathDistances.length - 1;
-      while (low + 1 < high) {
-        const mid = (low + high) >> 1;
-        if (pathDistances[mid] <= d) low = mid;
-        else high = mid;
-      }
-      const span = pathDistances[low + 1] - pathDistances[low] || 1;
-      const t = (d - pathDistances[low]) / span;
-      const a = rathPath[low];
-      const b = rathPath[low + 1];
-      return { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
-    };
-    let travelDistance = 0;
+
     animated.push((dt) => {
-      travelDistance = (travelDistance + dt * 5) % pathLength;
-      const { x, z } = pointOnPath(travelDistance);
-      const { x: nextX, z: nextZ } = pointOnPath(travelDistance + 1);
+      for (const procession of processions) {
+        procession.distance = (procession.distance + dt * procession.speed) % procession.path.length;
+        const { x, z } = procession.path.pointAt(procession.distance);
+        const next = procession.path.pointAt(procession.distance + 1);
 
-      terrainOrbit.position.set(
-        x,
-        groundHeightAt(x, z) + orbitFootOffset + 2,
-        z,
-      );
-      // This rath's forward axis is local +X, not Three.js's usual +Z.
-      terrainOrbit.rotation.y = Math.atan2(nextX - x, nextZ - z) - Math.PI / 2;
+        if (procession.rath) {
+          procession.rath.position.set(x, groundHeightAt(x, z) + orbitFootOffset + 2, z);
+          // This rath's forward axis is local +X, not Three.js's usual +Z.
+          procession.rath.rotation.y = Math.atan2(next.x - x, next.z - z) - Math.PI / 2;
+        }
 
-      if (kirtanFollowers) {
-        const followerDistance = travelDistance + 60;
-        const follower = pointOnPath(followerDistance);
-        const followerAhead = pointOnPath(followerDistance + 1);
-        const dance = travelDistance * 0.9;
-        kirtanFollowers.position.set(
-          follower.x,
-          groundHeightAt(follower.x, follower.z) + followerFootOffset + Math.max(0, Math.sin(dance)) * 0.12,
-          follower.z,
-        );
-        // GLB crowd faces local +Z; keep them moving ahead of the rath.
-        kirtanFollowers.rotation.y = Math.atan2(followerAhead.x - follower.x, followerAhead.z - follower.z)
-          - THREE.MathUtils.degToRad(60)
-          + Math.sin(dance * 0.6) * 0.08;
-        kirtanFollowers.rotation.x = Math.sin(dance * 1.3) * 0.035;
-        kirtanFollowers.rotation.z = Math.sin(dance * 1.8) * 0.06;
+        if (procession.followers) {
+          const followerDistance = procession.distance + procession.gap;
+          const follower = procession.path.pointAt(followerDistance);
+          const followerAhead = procession.path.pointAt(followerDistance + 1);
+          const dance = procession.distance * 0.9;
+          const surface = procession.surfaceY != null
+            ? procession.surfaceY
+            : groundHeightAt(follower.x, follower.z);
+          procession.followers.position.set(
+            follower.x,
+            surface + followerFootOffset + Math.max(0, Math.sin(dance)) * 0.12,
+            follower.z,
+          );
+          // GLB crowd faces local +Z; keep them moving ahead of the rath.
+          procession.followers.rotation.y = Math.atan2(followerAhead.x - follower.x, followerAhead.z - follower.z)
+            - THREE.MathUtils.degToRad(60)
+            + Math.sin(dance * 0.6) * 0.08;
+          procession.followers.rotation.x = Math.sin(dance * 1.3) * 0.035;
+          procession.followers.rotation.z = Math.sin(dance * 1.8) * 0.06;
+        }
       }
     });
   }
@@ -423,6 +560,8 @@ async function boot() {
   player.state.camPitch = 0.05;
 
   drone = createDrone({ camera, domElement: canvas, groundHeight, touchControls });
+  boat = createBoat({ camera, touchControls });
+  scene.add(boat.group);
 
   const top = findRidgeTop();
 
@@ -443,6 +582,31 @@ async function boot() {
     avatar: avatar || null,
   };
   window.__hill.drone = drone;
+  window.__hill.boat = boat;
+
+  const templeModel = glbs.find((o) => o.name === 'mayapur-temple') || glbs.find((o) => o.name === 'standin-temple');
+  const templeBox = templeModel ? new THREE.Box3().setFromObject(templeModel) : null;
+  const templeBounds = templeBox && !templeBox.isEmpty()
+    ? {
+        minX: templeBox.min.x,
+        maxX: templeBox.max.x,
+        minZ: templeBox.min.z,
+        maxZ: templeBox.max.z,
+        maxY: templeBox.max.y,
+      }
+    : undefined;
+
+  game = createGame({
+    scene,
+    hud,
+    helicopter: env.helicopter,
+    drone,
+    boat,
+    villagePoints: village.userData.positions || [],
+    farmPoints: farms.userData.counts ? farms.userData.counts.positions || [] : [],
+    temple: templeBounds,
+  });
+  window.__hill.game = game;
 
   const isTouch = touchControls.isTouchDevice;
   const controlsHtml = isTouch
@@ -455,7 +619,7 @@ async function boot() {
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
-    `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>${controlsHtml}<p class="note">${avatar ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`,
+    menuBody(),
     'Enter Temple',
     { modeChoice: true },
   );
@@ -541,21 +705,28 @@ function startPlay(kind, { resume = false } = {}) {
 
   if (kind === 'drone') {
     player.state.enabled = false;
+    boat.pause();
     if (resume && drone.state.started) drone.resume();
     else drone.activate(droneFlightPlan());
     hud.setStatus(DRONE_STATUS);
+  } else if (kind === 'boat') {
+    player.state.enabled = false;
+    drone.pause();
+    boat.enter();
+    hud.setStatus(BOAT_STATUS);
   } else {
     drone.deactivate();
+    boat.pause();
     player.state.enabled = true;
     hud.setStatus(WALK_STATUS);
   }
 
   if (touchControls) {
-    touchControls.setMode(kind);
+    touchControls.setMode(kind === 'boat' ? 'walk' : kind);
     touchControls.setVisible(true);
   }
 
-  requestPointerLock(canvas);
+  if (kind !== 'boat') requestPointerLock(canvas);
 }
 
 function requestPointerLock(element) {
@@ -594,7 +765,7 @@ function droneFlightPlan() {
   return {
     path,
     lookPath,
-    duration: 8.5,
+    duration: 4,
   };
 }
 
@@ -619,12 +790,16 @@ function pause() {
   if (phase !== 'playing') return;
   phase = 'paused';
   player.state.enabled = false;
-  drone.deactivate();
+  // pause() keeps the drone's intro flight so it can continue after resume.
+  drone.pause();
+  boat.pause();
   if (touchControls) touchControls.setVisible(false);
   const body =
     mode === 'drone'
       ? '<p>The drone is hovering. Tap Resume to keep flying, or Exit to Entrance to change mode.</p>'
-      : '<p>The temple waits. Tap Resume to keep walking, or Exit to Entrance to change mode.</p>';
+      : mode === 'boat'
+        ? '<p>The boat waits on the Ganga. Tap Resume to keep riding, or Exit to Entrance to change mode.</p>'
+        : '<p>The temple waits. Tap Resume to keep walking, or Exit to Entrance to change mode.</p>';
   hud.showOverlay(true, 'Paused', body, 'Resume', { modeChoice: true, droneButtonText: 'Exit to Entrance' });
 }
 
@@ -632,16 +807,66 @@ function returnToEntrance() {
   phase = 'menu';
   player.state.enabled = false;
   drone.deactivate();
+  boat.exit();
+  boat.resetToSpawn();
+  boatNear = false;
+  if (hud.showBoatPrompt) hud.showBoatPrompt(false);
   hud.showHud(false);
   hud.setButtonEnabled(true);
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
-    `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>${controlsHtmlStr}<p class="note">${avatarObj ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`,
+    menuBody(),
     'Enter Temple',
     { modeChoice: true, droneButtonText: 'Drone view' },
   );
 }
+
+function enterBoat() {
+  if (!boat || mode !== 'drone' || phase !== 'playing') return;
+  mode = 'boat';
+  drone.state.enabled = false;
+  boat.enter();
+  boatNear = false;
+  if (hud.showBoatPrompt) hud.showBoatPrompt(false);
+  hud.setStatus(BOAT_STATUS);
+  const found = game ? game.state().found : [];
+  if (!found.includes('ganga-middle')) {
+    hud.setGameHint('🎁 A gift floats in the middle of the Ganga — follow the golden light', 10000);
+  }
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+
+function exitBoat() {
+  if (mode !== 'boat' || phase !== 'playing') return;
+  mode = 'drone';
+  boat.exit();
+  // The drone returns to exactly where it was parked when boarding, and the
+  // boat goes back to its mooring at the ghat.
+  boat.resetToSpawn();
+  drone.state.velocity.set(0, 0, 0);
+  drone.state.enabled = true;
+  hud.setStatus(DRONE_STATUS);
+  if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+    hud.setGameHint('Click anywhere to capture the cursor and keep flying', 4500);
+  }
+}
+
+window.addEventListener('keydown', (e) => {
+  if (e.repeat || e.code !== 'KeyF') return;
+  if (phase !== 'playing') return;
+  if (game && game.isInteracting()) return;
+  if (mode === 'boat') {
+    exitBoat();
+  } else if (mode === 'drone' && boatNear) {
+    enterBoat();
+  }
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.code !== 'Escape') return;
+  if (phase === 'playing' && mode === 'boat') pause();
+});
 
 async function enterLandscapeFullscreen() {
   const el = document.documentElement;
@@ -758,8 +983,23 @@ hud.onDrone(() => {
   }
 });
 
+hud.onBoatRide(() => {
+  if (phase !== 'playing') return;
+  if (mode === 'boat') {
+    exitBoat();
+  } else if (boatNear) {
+    enterBoat();
+  }
+});
+
 document.addEventListener('pointerlockchange', () => {
   if (touchControls && touchControls.isTouchDevice) return;
+  // The boat uses a seated camera without pointer lock, so losing the lock
+  // there is expected and must not pause the ride.
+  if (mode === 'boat') return;
+  // The gift hunt releases the cursor on purpose (prompt, question, blessing)
+  // so the player can click - do not treat that as an Esc pause.
+  if (game && game.isInteracting()) return;
   if (document.pointerLockElement !== canvas && phase === 'playing') pause();
 });
 
@@ -773,24 +1013,50 @@ let frameCount = 0;
 function stepSimulation(dt) {
   for (const fn of animated) fn(dt);
   if (env) youtubeMusic.setDuck(env.getStormDuck());
-  if (phase === 'menu') player.state.camYaw += dt * 0.03;
 
   const droneMode = mode === 'drone' && phase !== 'menu';
-  if (droneMode) {
+  const boatMode = mode === 'boat' && phase !== 'menu';
+
+  if (game) {
+    game.update(dt, {
+      phase,
+      mode,
+      dronePos: drone.state.position,
+      boatPos: boat ? boat.state.position : null,
+    });
+  }
+
+  // Boat boarding prompt: only while flying the drone near the moored boat.
+  if (boat && hud.showBoatPrompt) {
+    if (boatMode) {
+      hud.showBoatPrompt(phase === 'playing', 'Leave boat');
+    } else {
+      const near = phase === 'playing' && droneMode
+        && drone.state.position.distanceTo(boat.state.position) < 14;
+      boatNear = near;
+      hud.showBoatPrompt(near && !(game && game.isInteracting()), 'Ride boat');
+    }
+  }
+
+  if (phase === 'menu') player.state.camYaw += dt * 0.03;
+
+  if (boatMode) {
+    // While paused the boat holds its position on the water.
+    if (phase === 'playing') boat.update(dt);
+  } else if (droneMode) {
     // While paused the drone holds its hover, so the camera does not snap away.
     if (phase === 'playing') drone.update(dt);
   } else {
     player.update(dt);
   }
-  const flying = droneMode;
 
   if (shotCam) {
     world.camera.position.copy(shotCam.pos);
     world.camera.lookAt(shotCam.target);
   }
   hud.update(dt, {
-    altitude: flying ? drone.state.position.y : player.state.position.y,
-    walked: flying ? drone.state.travelled : player.state.walked,
+    altitude: boatMode ? boat.state.position.y : droneMode ? drone.state.position.y : player.state.position.y,
+    walked: droneMode || boatMode ? drone.state.travelled : player.state.walked,
   });
 }
 

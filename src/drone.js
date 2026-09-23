@@ -4,6 +4,7 @@ const SETTINGS = {
   accel: 18,
   friction: 5.5,
   maxSpeed: 26,
+  keyboardBoost: 2.7,
   verticalSpeed: 14,
   mouseSensitivity: 0.0022,
   bounds: 750,
@@ -129,16 +130,38 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
     applyCamera();
   }
 
+  // Hold position while the game is paused. Unlike deactivate(), the intro
+  // flight (if one is playing) is kept so it can continue after resume.
+  function pause() {
+    state.enabled = false;
+  }
+
   // Return from a pause without replaying the intro flight.
   function resume() {
     state.enabled = true;
-    state.intro = null;
     applyCamera();
   }
 
   function deactivate() {
     state.enabled = false;
     state.intro = null;
+  }
+
+  // Re-capture the mouse for camera control. Must be called from a user
+  // gesture (click / key press). Returns a promise that rejects when the
+  // browser refuses (e.g. too soon after an exit).
+  function capturePointer() {
+    if (document.pointerLockElement === domElement) return Promise.resolve();
+    const request = domElement.requestPointerLock
+      || domElement.mozRequestPointerLock
+      || domElement.webkitRequestPointerLock;
+    if (typeof request !== 'function') return Promise.reject(new Error('pointer lock unsupported'));
+    try {
+      const result = request.call(domElement);
+      return result && typeof result.then === 'function' ? result : Promise.resolve();
+    } catch (error) {
+      return Promise.reject(error);
+    }
   }
 
   function update(dt) {
@@ -181,11 +204,14 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
     _right.set(Math.cos(state.yaw), 0, -Math.sin(state.yaw));
     _wish.set(0, 0, 0);
 
+    // Keyboard pilots fly a little faster than the touch joystick.
+    let keyboardInput = false;
+
     if (state.enabled) {
-      if (keys.has('KeyW') || keys.has('ArrowUp')) _wish.add(_forward);
-      if (keys.has('KeyS') || keys.has('ArrowDown')) _wish.sub(_forward);
-      if (keys.has('KeyD') || keys.has('ArrowRight')) _wish.add(_right);
-      if (keys.has('KeyA') || keys.has('ArrowLeft')) _wish.sub(_right);
+      if (keys.has('KeyW') || keys.has('ArrowUp')) { _wish.add(_forward); keyboardInput = true; }
+      if (keys.has('KeyS') || keys.has('ArrowDown')) { _wish.sub(_forward); keyboardInput = true; }
+      if (keys.has('KeyD') || keys.has('ArrowRight')) { _wish.add(_right); keyboardInput = true; }
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) { _wish.sub(_right); keyboardInput = true; }
       if (keys.has('Space') || keys.has('Tab') || keys.has('KeyE')) _wish.y += 1;
       if (keys.has('ShiftLeft') || keys.has('ShiftRight') || keys.has('KeyQ')) _wish.y -= 1;
 
@@ -200,12 +226,14 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
       }
     }
 
+    const maxSpeed = keyboardInput ? SETTINGS.maxSpeed * SETTINGS.keyboardBoost : SETTINGS.maxSpeed;
+
     const input = _wish.length();
     if (input > 0) _wish.divideScalar(input);
 
-    const targetX = _wish.x * SETTINGS.maxSpeed;
+    const targetX = _wish.x * maxSpeed;
     const targetY = _wish.y * SETTINGS.verticalSpeed;
-    const targetZ = _wish.z * SETTINGS.maxSpeed;
+    const targetZ = _wish.z * maxSpeed;
     const accel = input > 0 ? SETTINGS.accel : SETTINGS.friction;
     const damp = Math.exp(-accel * dt);
 
@@ -235,5 +263,5 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
 
   registerInput();
 
-  return { state, activate, resume, deactivate, update, SETTINGS, keys };
+  return { state, activate, resume, pause, deactivate, capturePointer, update, SETTINGS, keys };
 }
