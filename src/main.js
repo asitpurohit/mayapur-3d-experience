@@ -36,8 +36,6 @@ let env = null;
 let game = null;
 let touchControls = null;
 let animated = [];
-let avatarObj = null;
-let controlsHtmlStr = '';
 
 const WALK_STATUS = '[WASD] walk · [Shift] run · [Space] jump · [Esc] pause';
 const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mouse] look · [Esc] pause';
@@ -45,10 +43,63 @@ const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pau
 
 function menuBody() {
   return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
-    <p class="note"><b>🎁 Gift Hunt — Drone view:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>
-    <p class="note"><b>⛵ Boat ride:</b> fly the drone to the ghat to find a boat you can ride on the Ganga with W A S D — one gift can only be reached by boat.</p>
-    ${controlsHtmlStr}
-    <p class="note">${avatarObj ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`;
+    <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>
+    <p class="note"><b>⛵ Boat ride:</b> fly the drone to the ghat to find a boat you can ride on the Ganga with W A S D — one gift can only be reached by boat.</p>`;
+}
+
+// Give every swaying devotee a small devotional placard on a 1 m stick to
+// Every swaying devotee carries a small devotional placard on a 0.5 m stick.
+// The figures are GLB models with their own scale (about 10x), so the placard
+// is counter-scaled to stay life-sized and the stick starts exactly at the top
+// of the figure (the image is optional).
+function attachDancerPlacards(dancers) {
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    '/images/dancer-placard.webp',
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.7, metalness: 0.05 });
+      const stickMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4a26, roughness: 0.75 });
+      const stickGeometry = new THREE.CylinderGeometry(0.018, 0.022, 0.5, 6);
+      // Half the previous board, portrait like the deity photo (760x1142).
+      const boardGeometry = new THREE.BoxGeometry(0.315, 0.47, 0.03);
+      const imageGeometry = new THREE.PlaneGeometry(0.285, 0.425);
+      const imageMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+
+      for (const dancer of dancers) {
+        const object = dancer.object;
+        const scale = object.scale.x || 1;
+        const inv = 1 / scale;
+
+        // Local y of the figure's top, so the stick can touch it.
+        const box = new THREE.Box3().setFromObject(object);
+        const localTop = (box.max.y - object.position.y) / scale;
+
+        const placard = new THREE.Group();
+
+        // 0.5 m stick whose bottom end rests on the top of the figure.
+        const stick = new THREE.Mesh(stickGeometry, stickMaterial);
+        stick.position.y = 0.25;
+        placard.add(stick);
+
+        // Small board mounted on top of the stick.
+        const board = new THREE.Mesh(boardGeometry, frameMaterial);
+        board.position.y = 0.735;
+        const image = new THREE.Mesh(imageGeometry, imageMaterial);
+        image.position.set(0, 0.735, 0.017);
+        placard.add(board, image);
+
+        placard.scale.setScalar(inv);
+        placard.position.set(0, localTop, 0.5 * inv);
+        placard.rotation.x = 0.08;
+        object.add(placard);
+      }
+    },
+    undefined,
+    () => {
+      // No placard image yet - dancers keep dancing without one.
+    },
+  );
 }
 
 function makePathTracker(points) {
@@ -210,7 +261,7 @@ async function boot() {
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
-    '<p>Entering Mayapur Dham…</p><p class="note">🎁 Gift Hunt: in Drone view, find 11 gifts hidden across Mayapur. Open each and answer a spiritual question to receive it.</p>',
+    '<p>Entering Mayapur Dham…</p><p class="note">🎁 Gift Hunt: in PLAY GAME, find 11 gifts hidden across Mayapur. Open each and answer a spiritual question to receive it.</p>',
     'Please wait',
   );
   hud.setButtonEnabled(false);
@@ -266,14 +317,9 @@ async function boot() {
         scene,
         groundHeightAt,
         onLog: (msg) => glbNotes.push(msg),
-        onProgress: ({ item, percent, fromCache, loadedBytes, totalBytes }) => {
-          const mbLoaded = (loadedBytes / (1024 * 1024)).toFixed(1);
-          const mbTotal = totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(1) : null;
-          const sizeText = mbTotal ? `${mbLoaded} / ${mbTotal} MB` : `${mbLoaded} MB`;
-          const cacheMsg = fromCache
-            ? '⚡ Loaded from device storage'
-            : '💾 Storing to device for instant repeat visits';
-
+        onProgress: ({ item, percent }) => {
+          // Size and device-cache details stay silent; caching happens behind
+          // the scenes and the player only sees a simple progress bar.
           hud.showOverlay(
             true,
             'ISKCON Mayapur',
@@ -281,7 +327,6 @@ async function boot() {
              <div class="progress-box">
                <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${percent}%"></div></div>
                <div class="progress-sub"><span>Loading ${item}</span><span>${percent}%</span></div>
-               <div class="progress-cache">${sizeText} &middot; ${cacheMsg}</div>
              </div>`,
             'Please wait',
           );
@@ -335,6 +380,7 @@ async function boot() {
       scene.add(figure);
       return { object: figure, ...spot };
     });
+    attachDancerPlacards([...dancers, ...extraDancers]);
     const footOffset = terrainFigure.userData.footOffset || 0;
     let danceT = 0;
     animated.push((dt) => {
@@ -608,13 +654,6 @@ async function boot() {
   });
   window.__hill.game = game;
 
-  const isTouch = touchControls.isTouchDevice;
-  const controlsHtml = isTouch
-    ? `<ul class="controls"><li><b>Left Thumb</b> &mdash; virtual joystick to move / fly</li><li><b>Right Thumb</b> &mdash; drag to look around</li><li><b>Buttons</b> &mdash; ⤒ jump / ⚡ sprint &middot; ▲ up / ▼ down</li><li><b>⏸ Pause</b> &mdash; pause button at top-left</li></ul>`
-    : `<ul class="controls"><li><b>Walk</b> &mdash; W A S D walk &middot; Shift run &middot; Space jump</li><li><b>Drone</b> &mdash; W A S D fly &middot; Space / Tab rise &middot; Shift descend</li><li><b>Mouse</b> look &middot; click to capture cursor &middot; Esc pauses</li></ul>`;
-  avatarObj = avatar;
-  controlsHtmlStr = controlsHtml;
-
   hud.setButtonEnabled(true);
   hud.showOverlay(
     true,
@@ -811,6 +850,9 @@ function returnToEntrance() {
   boat.resetToSpawn();
   boatNear = false;
   if (hud.showBoatPrompt) hud.showBoatPrompt(false);
+  // A deliberate exit to the entrance wipes the gift hunt; pausing and
+  // resuming (or switching tabs) keeps all progress.
+  if (game) game.reset();
   hud.showHud(false);
   hud.setButtonEnabled(true);
   hud.showOverlay(
@@ -818,7 +860,7 @@ function returnToEntrance() {
     'ISKCON Mayapur',
     menuBody(),
     'Enter Temple',
-    { modeChoice: true, droneButtonText: 'Drone view' },
+    { modeChoice: true, droneButtonText: 'PLAY GAME' },
   );
 }
 

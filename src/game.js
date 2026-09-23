@@ -710,8 +710,38 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
     setPrompt(nearest);
   }
 
+  // Wipe the journey: used only when the player deliberately exits to the
+  // entrance. Pausing and resuming keeps all progress.
+  function reset() {
+    found.length = 0;
+    save();
+
+    for (const gift of gifts) {
+      gift.collected = false;
+      gift.group.visible = true;
+    }
+
+    if (heavenly.smoke) {
+      scene.remove(heavenly.smoke);
+      heavenly.smoke = null;
+    }
+    if (heavenly.group) {
+      scene.remove(heavenly.group);
+      heavenly.group = null;
+    }
+    heavenly.collected = false;
+    stopHelicopterSound();
+    delivery = { state: 'idle' };
+    activeGift = null;
+    modalOpen = false;
+    celebrating = false;
+    hud.showGiftPrompt(false);
+    refreshCounter(false);
+  }
+
   return {
     update,
+    reset,
     isInteracting: () => modalOpen || celebrating || activeGift != null,
     state: () => ({ found: [...found], delivery: delivery.state }),
     // Debug helper: current world positions of every gift.

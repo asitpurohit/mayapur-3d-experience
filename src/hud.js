@@ -27,7 +27,7 @@ export function createHud() {
   let blessingCloseHandler = null;
   let hintTimer = null;
 
-  function showOverlay(visible, title, bodyHtml, buttonText, { modeChoice = false, droneButtonText = 'Drone view' } = {}) {
+  function showOverlay(visible, title, bodyHtml, buttonText, { modeChoice = false, droneButtonText = 'PLAY GAME' } = {}) {
     if (title) {
       const h = overlay.querySelector('h1');
       if (h) h.textContent = title;

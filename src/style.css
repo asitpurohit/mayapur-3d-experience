@@ -480,12 +480,6 @@ body {
   justify-content: space-between;
 }
 
-.progress-cache {
-  font-size: 11.5px;
-  color: #a4b7ca;
-  margin-top: 4px;
-}
-
 /* --- Mobile Touch Controls --- */
 #touch-controls {
   position: fixed;
