@@ -1,7 +1,7 @@
-# Govardhan Hill
+# ISKCON Mayapur 3D Experience
 
-First-person walk on a procedural rocky ridge — inspired by an aerial shot of Govardhan hill.
-Everything (terrain, path, shrine, trees, rocks, city backdrop, sky) is generated in code with **no downloaded assets**.
+An interactive 3D darshan and aerial tour of ISKCON Mayapur built in Three.js and Vite.
+Walk the sacred temple grounds as Srila Prabhupada for direct darshan of Lord Narsimhadev inside the sanctum, or take the drone up for an aerial tour over the temple spires, lush gardens, and surrounding village.
 
 ## Run
 

@@ -1,9 +1,9 @@
 {
-  "name": "govardhan-hill",
+  "name": "iskcon-mayapur-3d",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "First-person walk on a procedural Govardhan-style rocky ridge.",
+  "description": "ISKCON Mayapur 3D — Walk as Srila Prabhupada for Lord Narsimhadev darshan and aerial drone tour.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

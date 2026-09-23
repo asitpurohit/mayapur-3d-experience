@@ -120,8 +120,8 @@ function createCamera() {
 async function boot() {
   hud.showOverlay(
     true,
-    'Govardhan Hill',
-    '<p>Generating ridge terrain, trees and shrine…</p>',
+    'ISKCON Mayapur',
+    '<p>Entering Mayapur Dham…</p>',
     'Please wait',
   );
   hud.setButtonEnabled(false);
@@ -420,9 +420,9 @@ async function boot() {
   hud.setButtonEnabled(true);
   hud.showOverlay(
     true,
-    'Govardhan Hill',
-    `<p>Walk the ridge as Srila Prabhupada, or take the drone up for an aerial view of the Mayapur temple.</p><ul class="controls"><li><b>Walk</b> &mdash; W A S D walk &middot; Shift run &middot; Space jump</li><li><b>Drone</b> &mdash; W A S D fly &middot; Space / Tab rise &middot; Shift descend</li><li><b>Mouse</b> look &middot; click to capture the cursor &middot; Esc pauses</li></ul><p class="note">${avatar ? 'Third-person camera — your body walks with you.' : 'Terrain, trees, shrine and city are generated in code.'}</p>`,
-    'Walk the hill',
+    'ISKCON Mayapur',
+    `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p><ul class="controls"><li><b>Walk</b> &mdash; W A S D walk &middot; Shift run &middot; Space jump</li><li><b>Drone</b> &mdash; W A S D fly &middot; Space / Tab rise &middot; Shift descend</li><li><b>Mouse</b> look &middot; click to capture cursor &middot; Esc pauses</li></ul><p class="note">${avatar ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`,
+    'Enter Temple',
     { modeChoice: true },
   );
   phase = 'menu';
@@ -563,7 +563,7 @@ function pause() {
   const body =
     mode === 'drone'
       ? '<p>The drone is hovering. Press Resume to keep flying.</p>'
-      : '<p>The hill waits. Press Resume to keep walking.</p>';
+      : '<p>The temple waits. Press Resume to keep walking.</p>';
   hud.showOverlay(true, 'Paused', body, 'Resume');
 }
 
