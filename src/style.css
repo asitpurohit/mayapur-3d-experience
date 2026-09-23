@@ -338,82 +338,77 @@ body {
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* Adjust stats panel on mobile so pause button doesn't overlap */
-@media (max-width: 600px) {
+/* Mobile vs Desktop Display Rules */
+.mobile-only {
+  display: none !important;
+}
+
+@media (hover: none) and (pointer: coarse), (max-width: 850px) {
+  /* Hide desktop WASD keyboard text on mobile */
+  #status {
+    display: none !important;
+  }
+  .mobile-only {
+    display: inline-flex !important;
+  }
   #stats {
     left: 62px;
   }
 }
 
-/* --- Mobile Landscape Prompt --- */
-#rotate-prompt {
+/* --- Non-Blocking Mobile Rotation Banner --- */
+.rotate-banner {
   position: fixed;
-  inset: 0;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(8, 14, 22, 0.96);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  z-index: 100;
-  padding: 24px;
-  text-align: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: rgba(12, 22, 34, 0.94);
+  border: 1px solid rgba(255, 215, 0, 0.55);
+  border-radius: 24px;
+  color: #f7ecd5;
+  font-size: 13px;
+  font-weight: 550;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 50;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
 }
 
-#rotate-prompt.hidden {
+.rotate-banner.hidden {
   display: none !important;
 }
 
-.rotate-card {
-  max-width: 320px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  color: #f0ede6;
-}
-
-.rotate-card h2 {
-  font-size: 21px;
-  font-weight: 700;
-  color: #f3d69b;
-  letter-spacing: -0.01em;
-}
-
-.rotate-card p {
+#rotate-banner-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
   font-size: 14px;
-  line-height: 1.55;
-  color: #b8c4d0;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 4px;
 }
 
-.rotate-phone-anim {
-  animation: rotatePhone 2.4s ease-in-out infinite;
-  transform-origin: center center;
+#rotate-banner-close:hover {
+  color: #fff;
 }
 
-@keyframes rotatePhone {
-  0%, 20% {
-    transform: rotate(0deg);
-  }
-  50%, 75% {
-    transform: rotate(-90deg);
-  }
-  100% {
-    transform: rotate(0deg);
-  }
-}
-
-/* Automatically display rotation prompt when in portrait on touch devices */
-@media screen and (orientation: portrait) and (max-width: 950px) {
-  #rotate-prompt {
-    display: flex !important;
-  }
-  #hud,
-  #touch-controls {
-    display: none !important;
-  }
+/* Force Landscape CSS Rotation (for devices with hardware portrait lock enabled) */
+body.force-landscape {
+  transform: rotate(90deg);
+  transform-origin: top left;
+  position: absolute;
+  top: 0;
+  left: 100vw;
+  width: 100vh !important;
+  height: 100vw !important;
+  overflow: hidden !important;
 }
 
 

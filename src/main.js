@@ -445,9 +445,12 @@ async function boot() {
   applyShotParams();
 
   window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
+    const isForced = document.body.classList.contains('force-landscape');
+    const width = isForced ? window.innerHeight : window.innerWidth;
+    const height = isForced ? window.innerWidth : window.innerHeight;
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setSize(width, height);
   });
 
   requestAnimationFrame(frame);
@@ -584,23 +587,17 @@ function pause() {
   hud.showOverlay(true, 'Paused', body, 'Resume');
 }
 
-async function requestLandscapeOrientation() {
-  try {
-    if (screen.orientation && typeof screen.orientation.lock === 'function') {
-      await screen.orientation.lock('landscape');
-    }
-  } catch {
-    // Expected on iOS Safari / browsers that do not permit locking outside full screen
-  }
-}
-
-function requestFullscreenMode() {
+async function enterLandscapeFullscreen() {
   const el = document.documentElement;
   const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
   if (fn && !document.fullscreenElement && !document.webkitFullscreenElement) {
     try {
-      const p = fn.call(el);
-      if (p && typeof p.catch === 'function') p.catch(() => {});
+      await fn.call(el);
+    } catch {}
+  }
+  if (screen.orientation && typeof screen.orientation.lock === 'function') {
+    try {
+      await screen.orientation.lock('landscape');
     } catch {}
   }
 }
@@ -608,7 +605,7 @@ function requestFullscreenMode() {
 function toggleFullscreenMode() {
   const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
   if (!isFull) {
-    requestFullscreenMode();
+    enterLandscapeFullscreen();
   } else {
     const exitFn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
     if (exitFn) {
@@ -637,10 +634,49 @@ function updateFullscreenBtn() {
 document.addEventListener('fullscreenchange', updateFullscreenBtn);
 document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 
+// Mobile rotate toggle (for devices with system portrait lock enabled)
+const rotateBtn = document.getElementById('rotate-btn');
+if (rotateBtn) {
+  rotateBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.body.classList.toggle('force-landscape');
+    const isForced = document.body.classList.contains('force-landscape');
+    rotateBtn.textContent = isForced ? '🔄 Normal' : '🔄 Landscape';
+    setTimeout(() => {
+      window.dispatchEvent(new Event('resize'));
+    }, 50);
+  });
+}
+
+// Non-blocking mobile orientation banner
+const rotateBanner = document.getElementById('rotate-banner');
+const rotateClose = document.getElementById('rotate-banner-close');
+if (rotateClose && rotateBanner) {
+  rotateClose.addEventListener('click', (e) => {
+    e.stopPropagation();
+    rotateBanner.classList.add('hidden');
+  });
+}
+
+function checkMobileOrientation() {
+  const isTouch = touchControls?.isTouchDevice || ('ontouchstart' in window);
+  const isPortrait = window.innerHeight > window.innerWidth;
+  if (rotateBanner) {
+    if (isTouch && isPortrait && !document.body.classList.contains('force-landscape')) {
+      rotateBanner.classList.remove('hidden');
+      setTimeout(() => rotateBanner.classList.add('hidden'), 6000);
+    } else {
+      rotateBanner.classList.add('hidden');
+    }
+  }
+}
+window.addEventListener('resize', checkMobileOrientation);
+window.addEventListener('orientationchange', checkMobileOrientation);
+
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
-    requestLandscapeOrientation();
-    requestFullscreenMode();
+    enterLandscapeFullscreen();
+    checkMobileOrientation();
     youtubeMusic.play();
     startPlay(mode, { resume: phase === 'paused' });
   }
@@ -648,8 +684,8 @@ hud.onStart(() => {
 
 hud.onDrone(() => {
   if (phase === 'menu' || phase === 'paused') {
-    requestLandscapeOrientation();
-    requestFullscreenMode();
+    enterLandscapeFullscreen();
+    checkMobileOrientation();
     youtubeMusic.play();
     startPlay('drone', { resume: phase === 'paused' && mode === 'drone' });
   }
