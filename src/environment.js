@@ -948,45 +948,71 @@ function makeRiverBoat(length, width, woodColor, seatColor) {
   const boat = new THREE.Group();
   boat.name = 'wooden-river-boat';
 
-  const hullShape = new THREE.Shape();
-  hullShape.moveTo(-length * 0.52, 0);
-  hullShape.quadraticCurveTo(-length * 0.42, -width * 0.48, -length * 0.15, -width * 0.5);
-  hullShape.quadraticCurveTo(length * 0.18, -width * 0.42, length * 0.43, -width * 0.24);
-  hullShape.lineTo(length * 0.52, 0);
-  hullShape.quadraticCurveTo(length * 0.43, width * 0.24, length * 0.18, width * 0.42);
-  hullShape.quadraticCurveTo(-length * 0.15, width * 0.5, -length * 0.42, width * 0.48);
-  hullShape.closePath();
+  const halfLength = length * 0.5;
+  const halfWidth = width * 0.5;
+  const depth = width * 0.32;
+  const draft = depth * 0.55;
+  const bowLift = depth * 0.75;
 
-  const hullGeometry = new THREE.ExtrudeGeometry(hullShape, {
-    depth: 0.28,
-    bevelEnabled: true,
-    bevelSegments: 2,
-    steps: 1,
-    bevelSize: 0.08,
-    bevelThickness: 0.08,
-  });
-  hullGeometry.rotateX(Math.PI / 2);
+  // Hull as a parametric surface: U-shaped cross-sections that taper to
+  // pointed bow and stern, both sweeping upward like a traditional boat.
+  const sections = 18;
+  const crossPoints = 10;
+  const positions = [];
+  const indices = [];
+
+  for (let i = 0; i <= sections; i++) {
+    const s = (i / sections) * 2 - 1;
+    const taper = Math.pow(Math.max(0, 1 - s * s), 0.72);
+    const widthHere = halfWidth * taper;
+    const depthHere = depth * Math.pow(Math.max(0, 1 - s * s), 0.6) + depth * 0.12;
+    // Bow (s > 0) rises higher than the stern.
+    const lift = bowLift * s * s * (s > 0 ? 1 : 0.72);
+
+    for (let j = 0; j < crossPoints; j++) {
+      const v = j / (crossPoints - 1);
+      const across = v * 2 - 1;
+      const y = lift + draft - depthHere * Math.pow(Math.max(0, 1 - across * across), 0.55);
+      positions.push(s * halfLength, y, across * widthHere);
+    }
+  }
+
+  for (let i = 0; i < sections; i++) {
+    for (let j = 0; j < crossPoints - 1; j++) {
+      const a = i * crossPoints + j;
+      const b = a + 1;
+      const c = a + crossPoints;
+      const d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+
+  const hullGeometry = new THREE.BufferGeometry();
+  hullGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  hullGeometry.setIndex(indices);
+  hullGeometry.computeVertexNormals();
+
   const hull = new THREE.Mesh(hullGeometry, new THREE.MeshStandardMaterial({
     color: woodColor,
     roughness: 0.72,
     metalness: 0.02,
+    side: THREE.DoubleSide,
   }));
-  hull.position.y = 0;
   hull.castShadow = true;
   hull.receiveShadow = true;
   boat.add(hull);
 
   const interior = new THREE.Mesh(
-    new THREE.BoxGeometry(length * 0.61, 0.08, width * 0.47),
+    new THREE.BoxGeometry(length * 0.55, 0.08, width * 0.5),
     new THREE.MeshStandardMaterial({ color: 0x4a3023, roughness: 0.9 }),
   );
-  interior.position.set(-length * 0.015, 0.06, 0);
+  interior.position.set(0, draft - depth * 0.35, 0);
   boat.add(interior);
 
   const seatMaterial = new THREE.MeshStandardMaterial({ color: seatColor, roughness: 0.8 });
-  for (const x of [-length * 0.23, length * 0.02, length * 0.25]) {
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(width * 0.68, 0.10, 0.14), seatMaterial);
-    seat.position.set(x, 0.15, 0);
+  for (const x of [-length * 0.22, length * 0.02, length * 0.24]) {
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(width * 0.55, 0.10, 0.16), seatMaterial);
+    seat.position.set(x, draft + depth * 0.1, 0);
     seat.castShadow = true;
     boat.add(seat);
   }
@@ -996,7 +1022,7 @@ function makeRiverBoat(length, width, woodColor, seatColor) {
     const oar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, length * 0.36, 6), oarMaterial);
     oar.rotation.z = Math.PI / 2;
     oar.rotation.y = side * -0.42;
-    oar.position.set(length * 0.06, 0.13, side * width * 0.72);
+    oar.position.set(length * 0.06, draft + depth * 0.05, side * width * 0.62);
     boat.add(oar);
   }
 
