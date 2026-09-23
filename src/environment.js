@@ -1003,7 +1003,7 @@ function makeRiverBoat(length, width, woodColor, seatColor) {
   boat.add(hull);
 
   const interior = new THREE.Mesh(
-    new THREE.BoxGeometry(length * 0.55, 0.08, width * 0.5),
+    new THREE.BoxGeometry(length * 0.55, width * 0.009, width * 0.5),
     new THREE.MeshStandardMaterial({ color: 0x4a3023, roughness: 0.9 }),
   );
   interior.position.set(0, draft - depth * 0.35, 0);
@@ -1011,15 +1011,16 @@ function makeRiverBoat(length, width, woodColor, seatColor) {
 
   const seatMaterial = new THREE.MeshStandardMaterial({ color: seatColor, roughness: 0.8 });
   for (const x of [-length * 0.22, length * 0.02, length * 0.24]) {
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(width * 0.55, 0.10, 0.16), seatMaterial);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(width * 0.55, width * 0.012, width * 0.019), seatMaterial);
     seat.position.set(x, draft + depth * 0.1, 0);
     seat.castShadow = true;
     boat.add(seat);
   }
 
   const oarMaterial = new THREE.MeshStandardMaterial({ color: 0x755239, roughness: 0.8 });
+  const oarRadius = width * 0.004;
   for (const side of [-1, 1]) {
-    const oar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, length * 0.36, 6), oarMaterial);
+    const oar = new THREE.Mesh(new THREE.CylinderGeometry(oarRadius * 0.72, oarRadius, length * 0.36, 6), oarMaterial);
     oar.rotation.z = Math.PI / 2;
     oar.rotation.y = side * -0.42;
     oar.position.set(length * 0.06, draft + depth * 0.05, side * width * 0.62);
@@ -1174,10 +1175,10 @@ function makeRiver() {
 
   const boats = [
     // A slower passenger launch in the deep-water lane.
-    { t: 0.24, speed: 1.15, z: -72, length: 40, width: 8.6, color: 0x6b432d, seat: 0xc29a63 },
-    { t: 0.37, speed: 2.7, z: -28, length: 30, width: 6.6, color: 0x805537, seat: 0xb18a5c },
-    { t: 0.52, speed: 2.1, z: 16, length: 26, width: 5.8, color: 0x64452f, seat: 0x9a7751 },
-    { t: 0.68, speed: 3.0, z: 44, length: 28, width: 6.2, color: 0x8b6040, seat: 0xb18a5c },
+    { t: 0.24, speed: 1.15, z: -72, length: 160, width: 34.4, color: 0x6b432d, seat: 0xc29a63 },
+    { t: 0.37, speed: 2.7, z: -28, length: 120, width: 26.4, color: 0x805537, seat: 0xb18a5c },
+    { t: 0.52, speed: 2.1, z: 16, length: 104, width: 23.2, color: 0x64452f, seat: 0x9a7751 },
+    { t: 0.68, speed: 3.0, z: 44, length: 112, width: 24.8, color: 0x8b6040, seat: 0xb18a5c },
   ].map((config) => {
     const boat = makeRiverBoat(config.length, config.width, config.color, config.seat);
     boat.userData.progress = config.t;
