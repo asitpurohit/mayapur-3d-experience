@@ -1,11 +1,11 @@
 /**
  * Mobile Touch Controls for 3D First-Person & Drone navigation.
- * Provides:
- *  - Left-thumb virtual dynamic joystick (movement / WASD)
- *  - Right-thumb swipe surface (camera look / pitch & yaw)
- *  - On-screen Jump & Sprint buttons for Walk mode
- *  - On-screen Up & Down vertical thrusters for Drone mode
- *  - On-screen Pause button (replaces Esc key on mobile)
+ * 
+ * Conflict-Free Dual-Zone Architecture:
+ *  - Dedicated bottom-left thumb pad (130x130px) for Movement Joystick
+ *  - Universal background surface (remaining ~85% of screen) for Camera Swipe
+ *  - Action buttons with stopPropagation so they never conflict
+ *  - Smooth exponential lerp filter for silky camera rotation
  */
 
 export function createTouchControls({ onPause = () => {} } = {}) {
@@ -35,20 +35,29 @@ export function createTouchControls({ onPause = () => {} } = {}) {
   container.className = 'touch-hidden';
 
   container.innerHTML = `
+    <!-- Universal Camera Look Zone (Covers whole screen behind buttons & joystick) -->
+    <div id="touch-look-zone"></div>
+
+    <!-- Dedicated Bottom-Left Movement Joystick Pad -->
     <div id="touch-joystick-zone">
       <div id="touch-joystick-base">
         <div id="touch-joystick-stick"></div>
       </div>
     </div>
-    <div id="touch-look-zone"></div>
+
+    <!-- Action Buttons for Walk Mode -->
     <div id="touch-buttons-walk" class="touch-button-group">
       <button id="touch-btn-sprint" class="touch-btn" aria-label="Sprint">⚡</button>
       <button id="touch-btn-jump" class="touch-btn" aria-label="Jump">⤒</button>
     </div>
+
+    <!-- Action Buttons for Drone Mode -->
     <div id="touch-buttons-drone" class="touch-button-group touch-hidden">
       <button id="touch-btn-up" class="touch-btn" aria-label="Ascend">▲</button>
       <button id="touch-btn-down" class="touch-btn" aria-label="Descend">▼</button>
     </div>
+
+    <!-- Mobile Pause Button -->
     <button id="touch-btn-pause" class="touch-btn-pause" aria-label="Pause">⏸</button>
   `;
 
@@ -69,58 +78,79 @@ export function createTouchControls({ onPause = () => {} } = {}) {
 
   // Multi-touch tracking
   let joyTouchId = null;
-  let joyOriginX = 0;
-  let joyOriginY = 0;
+  let joyCenterX = 0;
+  let joyCenterY = 0;
   const maxRadius = 45; // maximum joystick radius in px
+  const deadZone = 4;   // deadzone in px to prevent accidental drift
 
   let lookTouchId = null;
   let lookLastX = 0;
   let lookLastY = 0;
+  let smoothDx = 0;
+  let smoothDy = 0;
 
-  // Joystick touch handlers
+  // 1. Dedicated Joystick Handlers (Isolated to bottom-left pad)
   function handleJoyStart(e) {
     if (joyTouchId !== null) return;
+    e.preventDefault();
+    e.stopPropagation(); // Never trigger camera rotation!
+
     const touch = e.changedTouches[0];
     joyTouchId = touch.identifier;
-    joyOriginX = touch.clientX;
-    joyOriginY = touch.clientY;
 
-    joyBase.style.left = `${joyOriginX}px`;
-    joyBase.style.top = `${joyOriginY}px`;
-    joyBase.style.opacity = '1';
-    joyStick.style.transform = `translate(0px, 0px)`;
+    const rect = joyZone.getBoundingClientRect();
+    joyCenterX = rect.left + rect.width / 2;
+    joyCenterY = rect.top + rect.height / 2;
 
-    state.moveX = 0;
-    state.moveY = 0;
+    joyBase.classList.add('active');
+    updateStick(touch.clientX, touch.clientY);
   }
 
   function handleJoyMove(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       if (touch.identifier === joyTouchId) {
-        const dx = touch.clientX - joyOriginX;
-        const dy = touch.clientY - joyOriginY;
-        const dist = Math.hypot(dx, dy);
-        const clampedDist = Math.min(dist, maxRadius);
-        const angle = Math.atan2(dy, dx);
-
-        const stickX = Math.cos(angle) * clampedDist;
-        const stickY = Math.sin(angle) * clampedDist;
-        joyStick.style.transform = `translate(${stickX}px, ${stickY}px)`;
-
-        // Normalize axes: moveX (-1 to +1), moveY (-1 to +1 where up is forward +1)
-        state.moveX = stickX / maxRadius;
-        state.moveY = -stickY / maxRadius; // inverted so dragging up = forward
+        updateStick(touch.clientX, touch.clientY);
         break;
       }
     }
   }
 
+  function updateStick(clientX, clientY) {
+    const dx = clientX - joyCenterX;
+    const dy = clientY - joyCenterY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist < deadZone) {
+      joyStick.style.transform = `translate(0px, 0px)`;
+      state.moveX = 0;
+      state.moveY = 0;
+      return;
+    }
+
+    const clampedDist = Math.min(dist, maxRadius);
+    const angle = Math.atan2(dy, dx);
+    const stickX = Math.cos(angle) * clampedDist;
+    const stickY = Math.sin(angle) * clampedDist;
+
+    joyStick.style.transform = `translate(${stickX}px, ${stickY}px)`;
+
+    // Normalize axes: moveX (-1 to +1), moveY (-1 to +1 where up is forward +1)
+    state.moveX = stickX / maxRadius;
+    state.moveY = -stickY / maxRadius; // invert Y so pushing up = forward
+  }
+
   function handleJoyEnd(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
     for (let i = 0; i < e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === joyTouchId) {
         joyTouchId = null;
-        joyBase.style.opacity = '0.35';
+        joyBase.classList.remove('active');
         joyStick.style.transform = `translate(0px, 0px)`;
         state.moveX = 0;
         state.moveY = 0;
@@ -134,7 +164,7 @@ export function createTouchControls({ onPause = () => {} } = {}) {
   joyZone.addEventListener('touchend', handleJoyEnd, { passive: false });
   joyZone.addEventListener('touchcancel', handleJoyEnd, { passive: false });
 
-  // Camera look touch handlers (swipe on right half)
+  // 2. Camera Look Handlers (Universal swipe everywhere outside joystick)
   function handleLookStart(e) {
     if (lookTouchId !== null) return;
     const touch = e.changedTouches[0];
@@ -174,7 +204,7 @@ export function createTouchControls({ onPause = () => {} } = {}) {
   lookZone.addEventListener('touchend', handleLookEnd, { passive: false });
   lookZone.addEventListener('touchcancel', handleLookEnd, { passive: false });
 
-  // Button helper to bind press and release
+  // 3. Button Bindings (Stop propagation to prevent look swipe)
   function bindButton(btn, onDown, onUp) {
     btn.addEventListener('touchstart', (e) => {
       e.preventDefault();
@@ -230,13 +260,22 @@ export function createTouchControls({ onPause = () => {} } = {}) {
     }
   }
 
-  // Consume accumulated look deltas and reset
+  // Consume accumulated look deltas with exponential smoothing
   function consumeLookDeltas() {
-    const dx = state.lookDeltaX;
-    const dy = state.lookDeltaY;
+    const rawX = state.lookDeltaX;
+    const rawY = state.lookDeltaY;
     state.lookDeltaX = 0;
     state.lookDeltaY = 0;
-    return { dx, dy };
+
+    // Exponential smoothing for buttery camera motion
+    smoothDx = smoothDx * 0.35 + rawX * 0.65;
+    smoothDy = smoothDy * 0.35 + rawY * 0.65;
+
+    // Zero out tiny residual values
+    if (Math.abs(smoothDx) < 0.01) smoothDx = 0;
+    if (Math.abs(smoothDy) < 0.01) smoothDy = 0;
+
+    return { dx: smoothDx, dy: smoothDy };
   }
 
   return {
