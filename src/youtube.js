@@ -146,6 +146,45 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     }
   }
 
+  const SOOTHING_VOLUME = 28; // Serene ambient level, leaving 72% dynamic headroom for SFX
+  let currentVolume = SOOTHING_VOLUME;
+
+  function setVolume(v) {
+    currentVolume = Math.max(0, Math.min(100, Math.round(v)));
+    if (player && typeof player.setVolume === 'function') {
+      player.setVolume(currentVolume);
+    }
+  }
+
+  function getVolume() {
+    return currentVolume;
+  }
+
+  function applyVolume(targetVol = currentVolume, { fade = true } = {}) {
+    if (!player || typeof player.setVolume !== 'function') return;
+    if (typeof player.unMute === 'function') player.unMute();
+
+    if (!fade) {
+      player.setVolume(targetVol);
+      return;
+    }
+
+    // Soft fade-in so kirtan eases in serenely without startling the devotee
+    let v = 6;
+    player.setVolume(v);
+    const step = Math.max(1, (targetVol - v) / 8);
+    const timer = setInterval(() => {
+      v += step;
+      if (v >= targetVol) {
+        v = targetVol;
+        clearInterval(timer);
+      }
+      if (player && typeof player.setVolume === 'function') {
+        player.setVolume(Math.round(v));
+      }
+    }, 120);
+  }
+
   function toggle() {
     if (isPlaying) {
       pause();
@@ -159,8 +198,8 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     if (player && typeof player.loadVideoById === 'function') {
       try {
         if (typeof player.unMute === 'function') player.unMute();
-        if (typeof player.setVolume === 'function') player.setVolume(85);
         player.loadVideoById(nextId);
+        applyVolume(currentVolume, { fade: true });
         player.playVideo();
         isPlaying = true;
         updatePill(true);
@@ -173,8 +212,7 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
   function requestPlayback() {
     try {
       if (player && typeof player.playVideo === 'function') {
-        if (typeof player.unMute === 'function') player.unMute();
-        if (typeof player.setVolume === 'function') player.setVolume(85);
+        applyVolume(currentVolume, { fade: true });
         player.playVideo();
       }
     } catch (error) {
@@ -215,5 +253,5 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     });
   }
 
-  return { play, pause, toggle, skip, pickNextTrackId };
+  return { play, pause, toggle, skip, setVolume, getVolume, pickNextTrackId };
 }
