@@ -584,8 +584,19 @@ function pause() {
   hud.showOverlay(true, 'Paused', body, 'Resume');
 }
 
+async function requestLandscapeOrientation() {
+  try {
+    if (screen.orientation && typeof screen.orientation.lock === 'function') {
+      await screen.orientation.lock('landscape');
+    }
+  } catch {
+    // Expected on iOS Safari / browsers that do not permit locking outside full screen
+  }
+}
+
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
+    requestLandscapeOrientation();
     youtubeMusic.play();
     startPlay(mode, { resume: phase === 'paused' });
   }
@@ -593,6 +604,7 @@ hud.onStart(() => {
 
 hud.onDrone(() => {
   if (phase === 'menu' || phase === 'paused') {
+    requestLandscapeOrientation();
     youtubeMusic.play();
     startPlay('drone', { resume: phase === 'paused' && mode === 'drone' });
   }
