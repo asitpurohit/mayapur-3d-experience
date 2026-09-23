@@ -31,6 +31,8 @@ let drone = null;
 let env = null;
 let touchControls = null;
 let animated = [];
+let avatarObj = null;
+let controlsHtmlStr = '';
 
 const WALK_STATUS = '[WASD] walk · [Shift] run · [Space] jump · [Esc] pause';
 const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mouse] look · [Esc] pause';
@@ -446,6 +448,8 @@ async function boot() {
   const controlsHtml = isTouch
     ? `<ul class="controls"><li><b>Left Thumb</b> &mdash; virtual joystick to move / fly</li><li><b>Right Thumb</b> &mdash; drag to look around</li><li><b>Buttons</b> &mdash; ⤒ jump / ⚡ sprint &middot; ▲ up / ▼ down</li><li><b>⏸ Pause</b> &mdash; pause button at top-left</li></ul>`
     : `<ul class="controls"><li><b>Walk</b> &mdash; W A S D walk &middot; Shift run &middot; Space jump</li><li><b>Drone</b> &mdash; W A S D fly &middot; Space / Tab rise &middot; Shift descend</li><li><b>Mouse</b> look &middot; click to capture cursor &middot; Esc pauses</li></ul>`;
+  avatarObj = avatar;
+  controlsHtmlStr = controlsHtml;
 
   hud.setButtonEnabled(true);
   hud.showOverlay(
@@ -594,6 +598,23 @@ function droneFlightPlan() {
   };
 }
 
+function bindTouchClick(el, handler) {
+  if (!el) return;
+  let lastTime = 0;
+  const trigger = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const now = Date.now();
+    if (now - lastTime < 300) return;
+    lastTime = now;
+    handler(e);
+  };
+  el.addEventListener('click', trigger);
+  el.addEventListener('touchend', trigger);
+  el.addEventListener('pointerdown', (e) => e.stopPropagation());
+  el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+}
+
 function pause() {
   if (phase !== 'playing') return;
   phase = 'paused';
@@ -602,9 +623,24 @@ function pause() {
   if (touchControls) touchControls.setVisible(false);
   const body =
     mode === 'drone'
-      ? '<p>The drone is hovering. Press Resume to keep flying.</p>'
-      : '<p>The temple waits. Press Resume to keep walking.</p>';
-  hud.showOverlay(true, 'Paused', body, 'Resume');
+      ? '<p>The drone is hovering. Tap Resume to keep flying, or Exit to Entrance to change mode.</p>'
+      : '<p>The temple waits. Tap Resume to keep walking, or Exit to Entrance to change mode.</p>';
+  hud.showOverlay(true, 'Paused', body, 'Resume', { modeChoice: true, droneButtonText: 'Exit to Entrance' });
+}
+
+function returnToEntrance() {
+  phase = 'menu';
+  player.state.enabled = false;
+  drone.deactivate();
+  hud.showHud(false);
+  hud.setButtonEnabled(true);
+  hud.showOverlay(
+    true,
+    'ISKCON Mayapur',
+    `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>${controlsHtmlStr}<p class="note">${avatarObj ? 'Third-person camera — walk with Srila Prabhupada.' : 'Mayapur Dham 3D'}</p>`,
+    'Enter Temple',
+    { modeChoice: true, droneButtonText: 'Drone view' },
+  );
 }
 
 async function enterLandscapeFullscreen() {
@@ -626,6 +662,7 @@ function toggleFullscreenMode() {
   const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
   if (!isFull) {
     enterLandscapeFullscreen();
+    if (fsBtn) fsBtn.textContent = '🗗 Exit';
   } else {
     const exitFn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
     if (exitFn) {
@@ -634,13 +671,23 @@ function toggleFullscreenMode() {
         if (p && typeof p.catch === 'function') p.catch(() => {});
       } catch {}
     }
+    if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+      try { screen.orientation.unlock(); } catch {}
+    }
+    if (document.body.classList.contains('force-landscape')) {
+      document.body.classList.remove('force-landscape');
+      if (rotateBtn) rotateBtn.textContent = '🔄 Landscape';
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 50);
+    }
+    if (fsBtn) fsBtn.textContent = '⛶ Fullscreen';
   }
 }
 
 const fsBtn = document.getElementById('fullscreen-btn');
 if (fsBtn) {
-  fsBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  bindTouchClick(fsBtn, () => {
     toggleFullscreenMode();
   });
 }
@@ -657,8 +704,7 @@ document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 // Mobile rotate toggle (for devices with system portrait lock enabled)
 const rotateBtn = document.getElementById('rotate-btn');
 if (rotateBtn) {
-  rotateBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
+  bindTouchClick(rotateBtn, () => {
     document.body.classList.toggle('force-landscape');
     const isForced = document.body.classList.contains('force-landscape');
     rotateBtn.textContent = isForced ? '🔄 Normal' : '🔄 Landscape';
@@ -672,8 +718,7 @@ if (rotateBtn) {
 const rotateBanner = document.getElementById('rotate-banner');
 const rotateClose = document.getElementById('rotate-banner-close');
 if (rotateClose && rotateBanner) {
-  rotateClose.addEventListener('click', (e) => {
-    e.stopPropagation();
+  bindTouchClick(rotateClose, () => {
     rotateBanner.classList.add('hidden');
   });
 }
@@ -703,11 +748,13 @@ hud.onStart(() => {
 });
 
 hud.onDrone(() => {
-  if (phase === 'menu' || phase === 'paused') {
+  if (phase === 'paused') {
+    returnToEntrance();
+  } else if (phase === 'menu') {
     enterLandscapeFullscreen();
     checkMobileOrientation();
     youtubeMusic.play();
-    startPlay('drone', { resume: phase === 'paused' && mode === 'drone' });
+    startPlay('drone');
   }
 });
 

@@ -23,7 +23,7 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 5;
+  z-index: 30;
 }
 
 #hud.hidden {
@@ -59,10 +59,13 @@ body {
   gap: 8px;
   align-items: center;
   pointer-events: auto;
+  z-index: 35;
 }
 
 #fullscreen-btn,
-#music-pill {
+#music-pill,
+#music-next-btn,
+#rotate-btn {
   position: static;
   pointer-events: auto;
   cursor: pointer;
@@ -71,12 +74,29 @@ body {
   font-family: inherit;
   transition: all 180ms ease;
   user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255, 215, 0, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 #fullscreen-btn:hover,
-#music-pill:hover {
+#music-pill:hover,
+#music-next-btn:hover,
+#rotate-btn:hover {
   background: rgba(18, 30, 44, 0.85);
   border-color: rgba(255, 215, 0, 0.4);
+}
+
+#fullscreen-btn:active,
+#music-pill:active,
+#music-next-btn:active,
+#rotate-btn:active {
+  background: rgba(255, 215, 0, 0.35);
+  border-color: rgba(255, 215, 0, 0.8);
+  transform: scale(0.95);
 }
 
 #music-pill.playing {
@@ -111,7 +131,7 @@ body {
 #overlay {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: 50;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -242,7 +262,7 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 20;
+  z-index: 15;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -259,7 +279,7 @@ body {
   inset: 0;
   pointer-events: auto;
   touch-action: none;
-  z-index: 10;
+  z-index: 1;
 }
 
 /* Dedicated bottom-left movement thumb pad (130x130px) */
@@ -389,7 +409,24 @@ body {
     display: inline-flex !important;
   }
   #stats {
-    left: 62px;
+    left: 64px;
+    top: 14px;
+    font-size: 11px;
+    padding: 5px 8px;
+  }
+  .hud-top-right {
+    top: 10px;
+    right: 10px;
+    gap: 6px;
+  }
+  #fullscreen-btn,
+  #music-pill,
+  #music-next-btn,
+  #rotate-btn {
+    padding: 7px 11px;
+    font-size: 12px;
+    min-height: 38px;
+    border-radius: 8px;
   }
 }
 

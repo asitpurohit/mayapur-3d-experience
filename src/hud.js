@@ -10,7 +10,7 @@ export function createHud() {
   let fpsFrames = 0;
   let fpsValue = 0;
 
-  function showOverlay(visible, title, bodyHtml, buttonText, { modeChoice = false } = {}) {
+  function showOverlay(visible, title, bodyHtml, buttonText, { modeChoice = false, droneButtonText = 'Drone view' } = {}) {
     if (title) {
       const h = overlay.querySelector('h1');
       if (h) h.textContent = title;
@@ -20,7 +20,10 @@ export function createHud() {
       if (b) b.innerHTML = bodyHtml;
     }
     if (buttonText) startBtn.textContent = buttonText;
-    if (droneBtn) droneBtn.classList.toggle('hidden', !modeChoice);
+    if (droneBtn) {
+      droneBtn.textContent = droneButtonText;
+      droneBtn.classList.toggle('hidden', !modeChoice);
+    }
     overlay.classList.toggle('hidden', !visible);
   }
 
@@ -28,12 +31,28 @@ export function createHud() {
     hud.classList.toggle('hidden', !visible);
   }
 
+  function bindTouchClick(el, fn) {
+    if (!el) return;
+    let lastTime = 0;
+    const trigger = (e) => {
+      e.stopPropagation();
+      const now = Date.now();
+      if (now - lastTime < 300) return;
+      lastTime = now;
+      fn(e);
+    };
+    el.addEventListener('click', trigger);
+    el.addEventListener('touchend', trigger);
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+  }
+
   function onStart(fn) {
-    startBtn.addEventListener('click', fn);
+    bindTouchClick(startBtn, fn);
   }
 
   function onDrone(fn) {
-    if (droneBtn) droneBtn.addEventListener('click', fn);
+    bindTouchClick(droneBtn, fn);
   }
 
   function setButtonEnabled(on) {

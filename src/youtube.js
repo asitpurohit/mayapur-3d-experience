@@ -47,11 +47,11 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     if (playing) {
       pillElement.textContent = '🔊 Kirtan';
       pillElement.classList.add('playing');
-      pillElement.setAttribute('title', 'Playing Kirtan · Click to pause · Double-click for next random track');
+      pillElement.setAttribute('title', 'Playing Kirtan · Tap to pause · Tap ⏭ Next to change track');
     } else {
       pillElement.textContent = '🔈 Kirtan (Paused)';
       pillElement.classList.remove('playing');
-      pillElement.setAttribute('title', 'Kirtan paused · Click to play · Double-click for next random track');
+      pillElement.setAttribute('title', 'Kirtan paused · Tap to play · Tap ⏭ Next to change track');
     }
   };
 
@@ -182,13 +182,35 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     }
   }
 
-  if (pillElement) {
-    pillElement.addEventListener('click', (e) => {
+  const nextBtn = document.getElementById('music-next-btn');
+
+  function bindTouchClick(el, onAction) {
+    if (!el) return;
+    let lastTime = 0;
+    const trigger = (e) => {
+      e.preventDefault();
       e.stopPropagation();
-      toggle();
-    });
+      const now = Date.now();
+      if (now - lastTime < 300) return;
+      lastTime = now;
+      onAction();
+    };
+    el.addEventListener('click', trigger);
+    el.addEventListener('touchend', trigger);
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+  }
+
+  if (pillElement) {
+    bindTouchClick(pillElement, toggle);
     pillElement.addEventListener('dblclick', (e) => {
       e.stopPropagation();
+      skip();
+    });
+  }
+
+  if (nextBtn) {
+    bindTouchClick(nextBtn, () => {
       skip();
     });
   }
