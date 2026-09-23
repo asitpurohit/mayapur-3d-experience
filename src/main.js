@@ -594,9 +594,53 @@ async function requestLandscapeOrientation() {
   }
 }
 
+function requestFullscreenMode() {
+  const el = document.documentElement;
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  if (fn && !document.fullscreenElement && !document.webkitFullscreenElement) {
+    try {
+      const p = fn.call(el);
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch {}
+  }
+}
+
+function toggleFullscreenMode() {
+  const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (!isFull) {
+    requestFullscreenMode();
+  } else {
+    const exitFn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    if (exitFn) {
+      try {
+        const p = exitFn.call(document);
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      } catch {}
+    }
+  }
+}
+
+const fsBtn = document.getElementById('fullscreen-btn');
+if (fsBtn) {
+  fsBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleFullscreenMode();
+  });
+}
+
+function updateFullscreenBtn() {
+  const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  if (fsBtn) {
+    fsBtn.textContent = isFull ? '🗗 Exit' : '⛶ Fullscreen';
+  }
+}
+document.addEventListener('fullscreenchange', updateFullscreenBtn);
+document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
+
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
     requestLandscapeOrientation();
+    requestFullscreenMode();
     youtubeMusic.play();
     startPlay(mode, { resume: phase === 'paused' });
   }
@@ -605,6 +649,7 @@ hud.onStart(() => {
 hud.onDrone(() => {
   if (phase === 'menu' || phase === 'paused') {
     requestLandscapeOrientation();
+    requestFullscreenMode();
     youtubeMusic.play();
     startPlay('drone', { resume: phase === 'paused' && mode === 'drone' });
   }

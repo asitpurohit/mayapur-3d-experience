@@ -51,9 +51,19 @@ body {
   opacity: 0.85;
 }
 
-#music-pill {
+.hud-top-right {
+  position: absolute;
   top: 12px;
   right: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+}
+
+#fullscreen-btn,
+#music-pill {
+  position: static;
   pointer-events: auto;
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -63,6 +73,7 @@ body {
   user-select: none;
 }
 
+#fullscreen-btn:hover,
 #music-pill:hover {
   background: rgba(18, 30, 44, 0.85);
   border-color: rgba(255, 215, 0, 0.4);
