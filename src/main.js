@@ -179,6 +179,26 @@ async function boot() {
         scene,
         groundHeightAt,
         onLog: (msg) => glbNotes.push(msg),
+        onProgress: ({ item, percent, fromCache, loadedBytes, totalBytes }) => {
+          const mbLoaded = (loadedBytes / (1024 * 1024)).toFixed(1);
+          const mbTotal = totalBytes > 0 ? (totalBytes / (1024 * 1024)).toFixed(1) : null;
+          const sizeText = mbTotal ? `${mbLoaded} / ${mbTotal} MB` : `${mbLoaded} MB`;
+          const cacheMsg = fromCache
+            ? '⚡ Loaded from device storage'
+            : '💾 Storing to device for instant repeat visits';
+
+          hud.showOverlay(
+            true,
+            'ISKCON Mayapur',
+            `<p>Entering Mayapur Dham…</p>
+             <div class="progress-box">
+               <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${percent}%"></div></div>
+               <div class="progress-sub"><span>Loading ${item}</span><span>${percent}%</span></div>
+               <div class="progress-cache">${sizeText} &middot; ${cacheMsg}</div>
+             </div>`,
+            'Please wait',
+          );
+        },
       });
   if (liteMode) console.info('[glb] lite mode — model loading skipped');
   else if (glbNotes.length) console.info('[glb]', glbNotes.join('; '));

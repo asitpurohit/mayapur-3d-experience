@@ -5,16 +5,6 @@ import { ENTRANCE } from './entrance.js';
 
 const BASE = '/models';
 
-async function probe(url) {
-  try {
-    const res = await fetch(url, { method: 'HEAD' });
-    if (!res.ok) return false;
-    const type = res.headers.get('content-type') || '';
-    return !type.includes('text/html');
-  } catch {
-    return false;
-  }
-}
 
 function groundObject(root) {
   const box = new THREE.Box3().setFromObject(root);
@@ -201,11 +191,77 @@ function seatNarshimaOnTemple(scene, glbs, groundHeightAt, onLog = () => {}) {
   onLog(`narshima seated on interior sanctum podium at (${cx.toFixed(1)}, ${cz.toFixed(1)}, y=${altarTableTopY.toFixed(2)})`);
 }
 
+const CACHE_NAME = 'mayapur-3d-cache-v1';
+
+async function fetchBlobWithCache(url, onProgress) {
+  // 1. Check persistent Cache Storage
+  if (typeof caches !== 'undefined') {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      const matched = await cache.match(url, { ignoreSearch: true });
+      if (matched) {
+        const blob = await matched.blob();
+        onProgress?.({ loaded: blob.size, total: blob.size, cached: true });
+        return { blob, cached: true };
+      }
+    } catch (e) {
+      console.warn('[cache] Read error:', e);
+    }
+  }
+
+  // 2. Fetch from network
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} fetching ${url}`);
+  }
+
+  const contentLength = Number(res.headers.get('content-length')) || 0;
+  let blob = null;
+
+  if (!res.body || !contentLength) {
+    blob = await res.blob();
+    onProgress?.({ loaded: blob.size, total: blob.size, cached: false });
+  } else {
+    const reader = res.body.getReader();
+    const chunks = [];
+    let loaded = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.length;
+      onProgress?.({ loaded, total: contentLength, cached: false });
+    }
+    blob = new Blob(chunks, { type: 'model/gltf-binary' });
+  }
+
+  // 3. Store completed file into Cache Storage for instant repeat visits
+  if (typeof caches !== 'undefined' && blob) {
+    try {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(
+        url,
+        new Response(blob, {
+          headers: {
+            'Content-Type': 'model/gltf-binary',
+            'Content-Length': String(blob.size),
+          },
+        })
+      );
+    } catch (e) {
+      console.warn('[cache] Put error:', e);
+    }
+  }
+
+  return { blob, cached: false };
+}
+
 /**
- * Load optional GLB drop-ins from /public/models.
+ * Load GLB drop-ins from /public/models with persistent device caching and concurrent downloads.
  * Manifest can be a JSON array of { file, x, z, rotY, scale, targetSize } or bare filenames.
  */
-export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {} }) {
+export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, onProgress = () => {} }) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const added = [];
@@ -230,15 +286,61 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {} })
     }
   }
 
-  for (const slot of slots) {
-    const file = String(slot.file).replace(/^\/+/, '');
-    const url = (file.startsWith('http') ? file : `${BASE}/${file}`) + '?v=cut6';
-    if (!(await probe(url))) continue;
+  const slotProgress = new Map();
+  let allFromCache = true;
 
+  function reportProgress(activeName) {
+    let totalLoaded = 0;
+    let totalExpected = 0;
+    for (const p of slotProgress.values()) {
+      totalLoaded += p.loaded;
+      totalExpected += p.total;
+    }
+    const percent = totalExpected > 0 ? Math.min(100, Math.round((totalLoaded / totalExpected) * 100)) : 0;
+    onProgress({
+      item: activeName,
+      percent,
+      fromCache: allFromCache,
+      loadedBytes: totalLoaded,
+      totalBytes: totalExpected,
+    });
+  }
+
+  // Pre-fetch all models concurrently to saturate bandwidth
+  const fetchedSlots = await Promise.all(
+    slots.map(async (slot) => {
+      const file = String(slot.file).replace(/^\/+/, '');
+      const url = file.startsWith('http') ? file : `${BASE}/${file}`;
+      const name = slot.name || file.replace(/\.glb$/i, '');
+      try {
+        const { blob, cached } = await fetchBlobWithCache(url, ({ loaded, total, cached: isCached }) => {
+          slotProgress.set(file, { loaded, total: total || loaded });
+          if (!isCached) allFromCache = false;
+          reportProgress(name);
+        });
+        if (!cached) allFromCache = false;
+        return { slot, file, url, name, blob, cached };
+      } catch (err) {
+        console.warn(`[glb] Failed to download ${url}:`, err);
+        return { slot, file, url, name, blob: null, err };
+      }
+    })
+  );
+
+  // Parse each loaded model sequentially to maintain stable memory on mobile
+  for (const item of fetchedSlots) {
+    if (!item.blob) {
+      onLog(`failed ${item.file}`);
+      continue;
+    }
+    const { slot, file, name, blob } = item;
+    const blobUrl = URL.createObjectURL(blob);
     try {
-      const gltf = await loader.loadAsync(url);
+      const gltf = await loader.loadAsync(blobUrl);
+      URL.revokeObjectURL(blobUrl);
+
       const root = gltf.scene;
-      root.name = slot.name || file.replace(/\.glb$/i, '');
+      root.name = name;
 
       const isAvatar = slot.role === 'avatar';
       applyScale(root, slot);
@@ -256,8 +358,7 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {} })
           const box = new THREE.Box3().setFromObject(root);
           if (isFinite(box.min.y)) root.position.y += groundY - box.min.y;
         }
-        // Preserve the offset between the GLB origin and its grounded feet.
-        // Animated placements can then move the model without sinking it.
+        // Preserve offset between GLB origin and grounded feet
         root.userData.footOffset = root.position.y - groundY;
       } else {
         root.position.y = 0;
@@ -281,7 +382,8 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {} })
       const box = new THREE.Box3().setFromObject(root);
       onLog(`loaded ${root.name} dim=${maxDimOf(box).toFixed(1)}`);
     } catch (err) {
-      console.warn(`GLB failed: ${url}`, err);
+      URL.revokeObjectURL(blobUrl);
+      console.warn(`[glb] Parse error on ${file}:`, err);
       onLog(`failed ${file}`);
     }
   }

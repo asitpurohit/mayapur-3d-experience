@@ -48,6 +48,15 @@
       <button id="rotate-banner-close" aria-label="Dismiss">✕</button>
     </div>
 
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('[SW] Registration failed:', err);
+          });
+        });
+      }
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
