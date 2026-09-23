@@ -47,6 +47,11 @@ function menuBody() {
     <p class="note"><b>⛵ Boat ride:</b> fly the drone to the ghat to find a boat you can ride on the Ganga with W A S D — one gift can only be reached by boat.</p>`;
 }
 
+function hideSplash() {
+  const splash = document.getElementById('splash');
+  if (splash) splash.classList.add('hidden');
+}
+
 // Give every swaying devotee a small devotional placard on a 1 m stick to
 // Every swaying devotee carries a small devotional placard on a 0.5 m stick.
 // The figures are GLB models with their own scale (about 10x), so the placard
@@ -60,10 +65,10 @@ function attachDancerPlacards(dancers) {
       texture.colorSpace = THREE.SRGBColorSpace;
       const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.7, metalness: 0.05 });
       const stickMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4a26, roughness: 0.75 });
-      const stickGeometry = new THREE.CylinderGeometry(0.018, 0.022, 0.5, 6);
-      // Half the previous board, portrait like the deity photo (760x1142).
-      const boardGeometry = new THREE.BoxGeometry(0.315, 0.47, 0.03);
-      const imageGeometry = new THREE.PlaneGeometry(0.285, 0.425);
+      const stickGeometry = new THREE.CylinderGeometry(0.03, 0.036, 0.5, 6);
+      // Board and image are 3x bigger so the deity is clearly visible.
+      const boardGeometry = new THREE.BoxGeometry(0.945, 1.41, 0.06);
+      const imageGeometry = new THREE.PlaneGeometry(0.855, 1.275);
       const imageMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
 
       for (const dancer of dancers) {
@@ -82,11 +87,11 @@ function attachDancerPlacards(dancers) {
         stick.position.y = 0.25;
         placard.add(stick);
 
-        // Small board mounted on top of the stick.
+        // Board mounted on top of the stick.
         const board = new THREE.Mesh(boardGeometry, frameMaterial);
-        board.position.y = 0.735;
+        board.position.y = 1.205;
         const image = new THREE.Mesh(imageGeometry, imageMaterial);
-        image.position.set(0, 0.735, 0.017);
+        image.position.set(0, 1.205, 0.04);
         placard.add(board, image);
 
         placard.scale.setScalar(inv);
@@ -655,6 +660,7 @@ async function boot() {
   window.__hill.game = game;
 
   hud.setButtonEnabled(true);
+  hideSplash();
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
@@ -1113,6 +1119,7 @@ function frame(now) {
 
 boot().catch((err) => {
   console.error(err);
+  hideSplash();
   hud.showOverlay(
     true,
     'Could not start',

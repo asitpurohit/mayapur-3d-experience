@@ -19,6 +19,25 @@ body {
   height: 100%;
 }
 
+/* Cover art shown while the game downloads / loads, web or local. */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: #0a0f16;
+  overflow: hidden;
+}
+
+#splash img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#splash.hidden {
+  display: none;
+}
+
 #hud {
   position: fixed;
   inset: 0;
@@ -81,6 +100,12 @@ body {
   transform: translateX(-50%);
   pointer-events: auto;
   z-index: 36;
+}
+
+/* Gentle pulse so the interaction button is noticed on touch screens. */
+@keyframes promptPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
 }
 
 #gift-open-btn {
@@ -647,10 +672,32 @@ body {
     max-width: 200px;
   }
   #gift-prompt {
-    bottom: 132px;
+    bottom: 172px;
   }
   #boat-prompt {
-    bottom: 186px;
+    bottom: 244px;
+  }
+  /* Touch screens have no F key: the interaction buttons become large,
+     tappable action buttons. */
+  #gift-open-btn,
+  #boat-ride-btn {
+    padding: 14px 24px;
+    font-size: 16px;
+    min-height: 54px;
+    animation: promptPulse 1.6s ease-in-out infinite;
+  }
+  #gift-open-btn .key,
+  #boat-ride-btn .key {
+    display: none;
+  }
+  /* Bigger tap targets inside the question card. */
+  .gift-option {
+    padding: 13px 14px;
+    font-size: 14px;
+  }
+  #blessing-close {
+    min-height: 48px;
+    padding: 12px 24px;
   }
   .hud-top-right {
     top: 10px;
