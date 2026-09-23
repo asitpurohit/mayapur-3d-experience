@@ -1,0 +1,12 @@
+# Dependencies & build
+node_modules
+dist
+.vite
+
+# System files
+.DS_Store
+*.local
+
+# Raw offline assets
+raw_assets/
+*.fbx

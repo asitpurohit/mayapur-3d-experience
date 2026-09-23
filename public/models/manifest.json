@@ -1,0 +1,60 @@
+[
+  {
+    "file": "temple.glb",
+    "x": 17.7,
+    "z": 60,
+    "rotY": 0,
+    "scale": 1,
+    "name": "standin-temple"
+  },
+  {
+    "file": "mayapur_temple_with_color.glb",
+    "x": 17.7,
+    "z": 60,
+    "rotY": 0,
+    "targetSize": 73,
+    "name": "mayapur-temple"
+  },
+  {
+    "file": "narshima.glb",
+    "x": 17.7,
+    "z": 100,
+    "rotY": 0,
+    "scale": 1,
+    "name": "narshima"
+  },
+  {
+    "file": "prabhupada.glb",
+    "x": 0,
+    "z": 0,
+    "rotY": 0,
+    "targetSize": 1.78,
+    "name": "avatar",
+    "role": "avatar",
+    "autoGround": false
+  },
+  {
+    "file": "tripo-terrain-figure.glb",
+    "x": 37.5,
+    "z": 97.6,
+    "rotY": 0,
+    "targetHeight": 5,
+    "name": "terrain-figure"
+  },
+  {
+    "file": "tripo-terrain-orbit.glb",
+    "x": -37,
+    "z": 106,
+    "rotY": 0,
+    "targetHeight": 20,
+    "name": "terrain-orbit"
+  },
+  {
+    "file": "kirtan-followers.glb",
+    "x": -37,
+    "z": 106,
+    "rotY": 0,
+    "targetHeight": 20,
+    "name": "kirtan-followers"
+  }
+]

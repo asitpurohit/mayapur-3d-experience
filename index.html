@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:," />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Govardhan Hill — walk the ridge</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="hud" class="hidden">
+      <div id="stats" class="panel">-- fps · alt -- m</div>
+      <div id="status" class="panel">[WASD] walk · [Shift] run · [Space] jump · [Esc] pause</div>
+      <button id="music-pill" class="panel" title="Hare Krishna Kirtan 10 · Click to toggle sound">🔊 Kirtan</button>
+    </div>
+
+    <div id="music-widget" aria-hidden="true">
+      <div id="youtube-player"></div>
+    </div>
+
+    <div id="overlay">
+      <div class="card">
+        <h1>Govardhan Hill</h1>
+        <div class="body">
+          <p>Walk a rocky ridge above the plains — procedural terrain, sparse trees, a small shrine on top, and a hazy city far below.</p>
+          <ul class="controls">
+            <li><b>W A S D</b> walk &middot; <b>Shift</b> run</li>
+            <li><b>Mouse</b> look &middot; <b>click</b> to capture the cursor</li>
+            <li><b>Space</b> jump &middot; <b>Esc</b> release cursor</li>
+          </ul>
+          <p class="note">Terrain, trees, shrine and city are generated in code — no downloaded assets.</p>
+        </div>
+        <div class="mode-row">
+          <button id="startBtn">Walk the hill</button>
+          <button id="droneBtn" class="secondary">Drone view</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
