@@ -618,10 +618,12 @@ function armThunder() {
   return thunderContext;
 }
 
-function playThunder({ volume = 0.19, cutoff = 170, duration = 1.9, decay = 1.7 } = {}) {
+function playThunder({ volume = 0.36, cutoff = 460, duration = 2.2, decay = 1.5, crack = 0.55 } = {}) {
   const audio = armThunder();
   if (!audio) return;
   const now = audio.currentTime;
+
+  // Low rumble body.
   const buffer = audio.createBuffer(1, audio.sampleRate * duration, audio.sampleRate);
   const samples = buffer.getChannelData(0);
   for (let i = 0; i < samples.length; i++) {
@@ -640,6 +642,30 @@ function playThunder({ volume = 0.19, cutoff = 170, duration = 1.9, decay = 1.7 
   noise.connect(lowpass).connect(gain).connect(audio.destination);
   noise.start(now);
   noise.stop(now + duration + 0.05);
+
+  // Sharp mid-frequency crack so thunder cuts through on small speakers.
+  if (crack > 0) {
+    const crackDuration = 0.55;
+    const crackBuffer = audio.createBuffer(1, audio.sampleRate * crackDuration, audio.sampleRate);
+    const crackSamples = crackBuffer.getChannelData(0);
+    for (let i = 0; i < crackSamples.length; i++) {
+      const t = i / audio.sampleRate;
+      crackSamples[i] = (Math.random() * 2 - 1) * Math.exp(-t * 20);
+    }
+    const crackSource = audio.createBufferSource();
+    crackSource.buffer = crackBuffer;
+    const bandpass = audio.createBiquadFilter();
+    bandpass.type = 'bandpass';
+    bandpass.frequency.setValueAtTime(1500, now);
+    bandpass.Q.value = 0.7;
+    const crackGain = audio.createGain();
+    crackGain.gain.setValueAtTime(0.0001, now);
+    crackGain.gain.exponentialRampToValueAtTime(volume * crack, now + 0.012);
+    crackGain.gain.exponentialRampToValueAtTime(0.0001, now + crackDuration);
+    crackSource.connect(bandpass).connect(crackGain).connect(audio.destination);
+    crackSource.start(now);
+    crackSource.stop(now + crackDuration);
+  }
 }
 
 // Steady rain hiss: looping filtered noise whose gain follows the rain amount.
@@ -1190,25 +1216,31 @@ export function createEnvironment({ scene }) {
     if (!thunderPlayed && stormTarget && weatherPhaseElapsed >= 0.8 && stormCover >= 0.5) {
       thunderPlayed = true;
       lightningStartedAt = sunElapsed;
-      playThunder();
+      playThunder({ volume: 0.42, cutoff: 500, duration: 2.8, decay: 1.15, crack: 0.65 });
     }
     // Distant rumbles roll through for as long as the rain is falling.
     if (weatherEnabled && stormTarget && rainAmount > 0.3) {
       thunderTimer -= dt;
       if (thunderTimer <= 0) {
-        thunderTimer = 5 + Math.random() * 11;
-        playThunder({
-          volume: 0.08 + Math.random() * 0.11,
-          cutoff: 90 + Math.random() * 150,
-          duration: 2.2 + Math.random() * 1.4,
-          decay: 1.0 + Math.random() * 0.9,
-        });
+        thunderTimer = 4 + Math.random() * 9;
+        const distance = Math.random(); // 0 = overhead, 1 = far away
+        // Flash first, then the rumble arrives after a distance-based delay.
+        lightningStartedAt = sunElapsed;
+        window.setTimeout(() => {
+          playThunder({
+            volume: 0.38 - distance * 0.18,
+            cutoff: 520 - distance * 200,
+            duration: 1.9 + distance * 1.7,
+            decay: 1.7 - distance * 0.55,
+            crack: 0.6 - distance * 0.4,
+          });
+        }, 150 + distance * 1600);
       }
     }
     setRainAudioLevel(rainAmount);
     const lightningAge = sunElapsed - lightningStartedAt;
-    const lightning = lightningAge >= 0 && lightningAge < 0.75
-      ? Math.max(0, 1 - lightningAge / 0.75) * (lightningAge < 0.12 ? 1 : 0.28)
+    const lightning = lightningAge >= 0 && lightningAge < 0.9
+      ? Math.max(0, 1 - lightningAge / 0.9) * (lightningAge < 0.15 ? 1 : 0.42)
       : 0;
 
     // Sun altitude: starts at 9.0 deg and rises slowly up to 36.0 deg
@@ -1256,7 +1288,7 @@ export function createEnvironment({ scene }) {
     skyMat.uniforms.horizonColor.value.lerp(stormSkyHorizon, stormCover * 0.32);
     skyMat.uniforms.sunColor.value.copy(SUN_COLOR_DAWN).lerp(SUN_COLOR_DAY, prog);
     skyMat.uniforms.sunColor.value.multiplyScalar(1 - stormCover * 0.82);
-    skyMat.uniforms.lightningFlash.value = lightning * 0.42;
+    skyMat.uniforms.lightningFlash.value = lightning * 0.55;
 
     // Atmosphere Fog & Background
     scene.fog.color.copy(fogDawn).lerp(fogDay, prog);
@@ -1308,7 +1340,7 @@ export function createEnvironment({ scene }) {
 
       lightningLight.position.copy(camera.position);
       lightningLight.position.y += 44;
-      lightningLight.intensity = lightning * 2.4;
+      lightningLight.intensity = lightning * 3.2;
 
       // Scale sun disc slightly based on elevation
       const sunScale = 1.35 - prog * 0.20;
