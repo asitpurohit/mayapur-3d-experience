@@ -1148,10 +1148,10 @@ function makeRiver() {
 
   const boats = [
     // A slower passenger launch in the deep-water lane.
-    { t: 0.24, speed: 1.15, z: -72, length: 28, width: 6.2, color: 0x6b432d, seat: 0xc29a63 },
-    { t: 0.37, speed: 2.7, z: -28, length: 15, width: 3.4, color: 0x805537, seat: 0xb18a5c },
-    { t: 0.52, speed: 2.1, z: 16, length: 12, width: 2.8, color: 0x64452f, seat: 0x9a7751 },
-    { t: 0.68, speed: 3.0, z: 44, length: 14, width: 3.1, color: 0x8b6040, seat: 0xb18a5c },
+    { t: 0.24, speed: 1.15, z: -72, length: 40, width: 8.6, color: 0x6b432d, seat: 0xc29a63 },
+    { t: 0.37, speed: 2.7, z: -28, length: 30, width: 6.6, color: 0x805537, seat: 0xb18a5c },
+    { t: 0.52, speed: 2.1, z: 16, length: 26, width: 5.8, color: 0x64452f, seat: 0x9a7751 },
+    { t: 0.68, speed: 3.0, z: 44, length: 28, width: 6.2, color: 0x8b6040, seat: 0xb18a5c },
   ].map((config) => {
     const boat = makeRiverBoat(config.length, config.width, config.color, config.seat);
     boat.userData.progress = config.t;
