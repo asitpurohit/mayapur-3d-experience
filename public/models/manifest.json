@@ -5,7 +5,8 @@
     "z": 60,
     "rotY": 0,
     "scale": 1,
-    "name": "standin-temple"
+    "name": "standin-temple",
+    "bytes": 44431016
   },
   {
     "file": "mayapur_temple_with_color.glb",
@@ -13,7 +14,8 @@
     "z": 60,
     "rotY": 0,
     "targetSize": 73,
-    "name": "mayapur-temple"
+    "name": "mayapur-temple",
+    "bytes": 60326948
   },
   {
     "file": "narshima.glb",
@@ -21,7 +23,8 @@
     "z": 100,
     "rotY": 0,
     "scale": 1,
-    "name": "narshima"
+    "name": "narshima",
+    "bytes": 21732516
   },
   {
     "file": "guru.glb",
@@ -30,7 +33,8 @@
     "rotY": 0,
     "scale": 1,
     "autoGround": false,
-    "name": "guru"
+    "name": "guru",
+    "bytes": 23036028
   },
   {
     "file": "prabhupada.glb",
@@ -40,7 +44,8 @@
     "targetSize": 1.78,
     "name": "avatar",
     "role": "avatar",
-    "autoGround": false
+    "autoGround": false,
+    "bytes": 23457412
   },
   {
     "file": "tripo-terrain-figure.glb",
@@ -48,7 +53,8 @@
     "z": 97.6,
     "rotY": 0,
     "targetHeight": 5,
-    "name": "terrain-figure"
+    "name": "terrain-figure",
+    "bytes": 22806712
   },
   {
     "file": "tripo-terrain-orbit.glb",
@@ -56,7 +62,8 @@
     "z": 106,
     "rotY": 0,
     "targetHeight": 20,
-    "name": "terrain-orbit"
+    "name": "terrain-orbit",
+    "bytes": 15056004
   },
   {
     "file": "kirtan-followers.glb",
@@ -64,6 +71,7 @@
     "z": 106,
     "rotY": 0,
     "targetHeight": 20,
-    "name": "kirtan-followers"
+    "name": "kirtan-followers",
+    "bytes": 14972296
   }
 ]

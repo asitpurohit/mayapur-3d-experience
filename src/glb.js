@@ -398,6 +398,16 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
   let allFromCache = true;
   const cacheBigFiles = true;
 
+  // Pre-seed every slot with its known file size so the progress denominator
+  // is the full total from the very first byte. Without this, early % readings
+  // are wrong because the denominator only grows as each file starts.
+  for (const slot of slots) {
+    const file = String(slot.file).replace(/^\/+/, '');
+    // Use the manifest's bytes field; fall back to a rough 20 MB estimate so
+    // the bar still moves meaningfully even for slots without a known size.
+    slotProgress.set(file, { loaded: 0, total: slot.bytes || 20 * 1024 * 1024 });
+  }
+
   function reportProgress(activeName) {
     let totalLoaded = 0;
     let totalExpected = 0;
@@ -405,7 +415,7 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
       totalLoaded += p.loaded;
       totalExpected += p.total;
     }
-    const percent = totalExpected > 0 ? Math.min(100, Math.round((totalLoaded / totalExpected) * 100)) : 0;
+    const percent = totalExpected > 0 ? Math.min(100, (totalLoaded / totalExpected) * 100) : 0;
     onProgress({
       item: activeName,
       percent,
@@ -421,7 +431,8 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
     const file = String(slot.file).replace(/^\/+/, '');
     const url = file.startsWith('http') ? file : `${BASE}/${file}`;
     const name = slot.name || file.replace(/\.glb$/i, '');
-    slotProgress.set(file, { loaded: 0, total: 1 });
+    // Don't re-initialize here — slotProgress was pre-seeded with real sizes
+    // above so the overall denominator is always correct from the first byte.
     reportProgress(name);
 
     let blob = null;
