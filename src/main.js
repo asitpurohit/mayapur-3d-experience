@@ -32,6 +32,7 @@ let player = null;
 let drone = null;
 let boat = null;
 let boatNear = false;
+let boatHintShown = false;
 let env = null;
 let game = null;
 let touchControls = null;
@@ -887,7 +888,7 @@ function enterBoat() {
   hud.setStatus(BOAT_STATUS);
   const found = game ? game.state().found : [];
   if (!found.includes('ganga-middle')) {
-    hud.setGameHint('🎁 A gift floats in the middle of the Ganga — follow the golden light', 10000);
+    hud.setGameHint('🎁 Gift Hunt during the boat ride — a gift floats in the middle of the Ganga, follow the golden light', 11000);
   }
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -1108,10 +1109,20 @@ function stepSimulation(dt) {
     if (boatMode) {
       hud.showBoatPrompt(phase === 'playing', 'Leave boat');
     } else {
-      const near = phase === 'playing' && droneMode
-        && drone.state.position.distanceTo(boat.state.position) < 14;
+      const distance = drone.state.position.distanceTo(boat.state.position);
+      const near = phase === 'playing' && droneMode && distance < 14;
       boatNear = near;
       hud.showBoatPrompt(near && !(game && game.isInteracting()), 'Ride boat');
+
+      // Announce the boat ride while approaching from the air.
+      if (phase === 'playing' && droneMode) {
+        if (distance < 80 && !boatHintShown) {
+          boatHintShown = true;
+          hud.setGameHint('⛵ Boat ride — fly closer and tap to ride the boat on the Ganga', 7000);
+        } else if (distance > 110) {
+          boatHintShown = false;
+        }
+      }
     }
   }
 

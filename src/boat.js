@@ -7,6 +7,8 @@ const SETTINGS = {
   accel: 2.1,
   turnRate: 1.5,
   waterY: -3.42,
+  // The rideable boat floats high so its deck stays clearly above the water.
+  floatOffset: 0.55,
   spawn: { x: -390, z: -248, heading: -Math.PI / 2 },
   // The Ganga ribbon spans z -480..-230 and x -1300..1300; the hull must stay
   // fully inside it, so the drivable area is inset by the hull footprint.
@@ -32,8 +34,45 @@ export function createBoat({ camera, touchControls = null, spawn = SETTINGS.spaw
   flag.position.set(-6.6, 6.1, 0);
   group.add(flag);
 
+  // Floating "BOAT RIDE" sign so players understand the boat is rideable.
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = 512;
+  signCanvas.height = 128;
+  const signCtx = signCanvas.getContext('2d');
+  signCtx.fillStyle = 'rgba(10, 18, 28, 0.85)';
+  if (typeof signCtx.roundRect === 'function') {
+    signCtx.beginPath();
+    signCtx.roundRect(8, 8, 496, 112, 28);
+    signCtx.fill();
+    signCtx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
+    signCtx.lineWidth = 6;
+    signCtx.stroke();
+  } else {
+    signCtx.fillRect(8, 8, 496, 112);
+    signCtx.strokeStyle = 'rgba(255, 215, 0, 0.9)';
+    signCtx.lineWidth = 6;
+    signCtx.strokeRect(8, 8, 496, 112);
+  }
+  signCtx.font = 'bold 62px system-ui, sans-serif';
+  signCtx.textAlign = 'center';
+  signCtx.textBaseline = 'middle';
+  signCtx.fillStyle = '#ffe9a8';
+  signCtx.fillText('BOAT RIDE', 256, 68);
+
+  const signTexture = new THREE.CanvasTexture(signCanvas);
+  signTexture.colorSpace = THREE.SRGBColorSpace;
+  const sign = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: signTexture,
+    transparent: true,
+    depthWrite: false,
+  }));
+  sign.position.set(0, 11, 0);
+  sign.scale.set(8, 2, 1);
+  sign.name = 'boat-ride-sign';
+  group.add(sign);
+
   const state = {
-    position: new THREE.Vector3(spawn.x, SETTINGS.waterY + 0.12, spawn.z),
+    position: new THREE.Vector3(spawn.x, SETTINGS.waterY + SETTINGS.floatOffset, spawn.z),
     speed: 0,
     heading: spawn.heading,
     enabled: false,
@@ -64,7 +103,7 @@ export function createBoat({ camera, touchControls = null, spawn = SETTINGS.spaw
 
   // Return the boat to its mooring at the ghat so it is always waiting there.
   function resetToSpawn() {
-    state.position.set(spawn.x, SETTINGS.waterY + 0.12, spawn.z);
+    state.position.set(spawn.x, SETTINGS.waterY + SETTINGS.floatOffset, spawn.z);
     state.speed = 0;
     state.heading = spawn.heading;
     group.position.copy(state.position);
@@ -132,7 +171,7 @@ export function createBoat({ camera, touchControls = null, spawn = SETTINGS.spaw
     }
     if (blocked) state.speed *= 0.25;
 
-    state.position.set(nx, SETTINGS.waterY + 0.12, nz);
+    state.position.set(nx, SETTINGS.waterY + SETTINGS.floatOffset, nz);
 
     group.position.set(
       state.position.x,
