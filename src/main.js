@@ -1016,7 +1016,7 @@ if (fsBtn) {
 function updateFullscreenBtn() {
   if (!fsBtn) return;
   if (isTouchDevice()) {
-    fsBtn.textContent = '🗗 Exit Game';
+    fsBtn.textContent = '🗗 Exit';
     fsBtn.title = 'Exit to the entrance screen';
     return;
   }
