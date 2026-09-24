@@ -362,12 +362,12 @@ function createRenderer() {
   const isMobile = isMobileDevice();
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: !isMobile,
-    powerPreference: isMobile ? 'default' : 'high-performance',
-    precision: isMobile ? 'mediump' : 'highp',
+    antialias: true,
+    powerPreference: 'high-performance',
+    precision: 'highp',
   });
-  // Desktop gets crisp 1.75x; phones get cool, fast 1.0x (cuts pixel shading by ~55%)
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.0 : 1.75));
+  // 1.5x on mobile restores full crisp Retina clarity without low-res blurriness
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
