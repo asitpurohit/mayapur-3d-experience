@@ -275,7 +275,7 @@ function attachDancerPlacards(dancers) {
       texture.colorSpace = THREE.SRGBColorSpace;
       const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.7, metalness: 0.05 });
       const stickMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4a26, roughness: 0.75 });
-      const stickGeometry = new THREE.CylinderGeometry(0.06, 0.072, 1.0, 6);
+      const stickGeometry = new THREE.CylinderGeometry(0.06, 0.072, 1.5, 6);
       // Half the previous size (the maha-mantra poster).
       const boardGeometry = new THREE.BoxGeometry(1.89, 2.82, 0.12);
       const imageGeometry = new THREE.PlaneGeometry(1.71, 2.55);
@@ -292,16 +292,16 @@ function attachDancerPlacards(dancers) {
 
         const placard = new THREE.Group();
 
-        // 1 m stick whose bottom end rests on the top of the figure.
+        // 1.5 m stick whose bottom end rests on the top of the figure.
         const stick = new THREE.Mesh(stickGeometry, stickMaterial);
-        stick.position.y = 0.5;
+        stick.position.y = 0.75;
         placard.add(stick);
 
         // Board mounted on top of the stick.
         const board = new THREE.Mesh(boardGeometry, frameMaterial);
-        board.position.y = 2.41;
+        board.position.y = 2.91;
         const image = new THREE.Mesh(imageGeometry, imageMaterial);
-        image.position.set(0, 2.41, 0.08);
+        image.position.set(0, 2.91, 0.08);
         placard.add(board, image);
 
         placard.scale.setScalar(inv);
@@ -867,7 +867,7 @@ async function boot() {
     spawn: { x: ENTRANCE.doorX, y: spawnY, z: ENTRANCE.stairs.zBottom + 8, heading: 0 },
     groundHeight,
     colliders: getTempleColliders(),
-    thirdPerson: !!avatar,
+    thirdPerson: glbs.some((o) => o.name === 'avatar'),
     touchControls,
   });
   player.state.position.y = spawnY;
@@ -897,7 +897,7 @@ async function boot() {
     frames: () => frameCount,
     top,
     glbs,
-    avatar: avatar || null,
+    avatar: glbs.find((o) => o.name === 'avatar') || null,
   };
   window.__hill.drone = drone;
   window.__hill.boat = boat;
