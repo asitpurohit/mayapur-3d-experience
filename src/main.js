@@ -33,6 +33,9 @@ let drone = null;
 let boat = null;
 let boatNear = false;
 let boatHintShown = false;
+let tutorialOpen = false;
+let tutorialDoneThisEntry = false;
+let droneIntroWasActive = false;
 let env = null;
 let game = null;
 let touchControls = null;
@@ -45,6 +48,45 @@ const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pau
 function menuBody() {
   return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
     <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>`;
+}
+
+// The GLB's front entrance passage was cut open for the walkable route. Line
+// the cut with sandstone walls that match the procedural staircase, hiding the
+// broken pillar stubs and jagged cut edges so it reads as a real entrance.
+// Cut region measured from the model: x 10.5..25.5, floor..y 43.6, z 68.5..82.6.
+function buildEntrancePortalLining(scene) {
+  const stone = new THREE.MeshStandardMaterial({ color: 0xc4b39a, roughness: 0.9, metalness: 0.03 });
+  const trim = new THREE.MeshStandardMaterial({ color: 0x9d8a6a, roughness: 0.9, metalness: 0.04 });
+
+  const group = new THREE.Group();
+  group.name = 'temple-entrance-lining';
+
+  const addBox = (w, h, d, x, y, z, material) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    return mesh;
+  };
+
+  // Passage lining: jambs and ceiling sitting on the cut planes.
+  const midZ = 75.55;
+  const depth = 14.9;
+  const jambH = 11.0;
+  const jambY = 33.2 + jambH / 2;
+  addBox(1.0, jambH, depth, 10.5, jambY, midZ, stone);
+  addBox(1.0, jambH, depth, 25.5, jambY, midZ, stone);
+  addBox(16.0, 1.0, depth, 18.0, 43.9, midZ, stone);
+
+  // Trim frame around the staircase-side opening, masking the raw cut edge.
+  const frameZ = 82.9;
+  addBox(0.5, 11.2, 0.7, 11.1, 39.1, frameZ, trim);
+  addBox(0.5, 11.2, 0.7, 24.9, 39.1, frameZ, trim);
+  addBox(14.3, 0.5, 0.7, 18.0, 43.5, frameZ, trim);
+
+  scene.add(group);
+  return group;
 }
 
 function hideSplash() {
@@ -642,11 +684,15 @@ async function boot() {
     ? {
         minX: templeBox.min.x,
         maxX: templeBox.max.x,
+        minY: templeBox.min.y,
         minZ: templeBox.min.z,
         maxZ: templeBox.max.z,
         maxY: templeBox.max.y,
       }
     : undefined;
+
+  // Dress the cut entrance passage so the broken edges look intentional.
+  buildEntrancePortalLining(scene);
 
   game = createGame({
     scene,
@@ -758,8 +804,14 @@ function startPlay(kind, { resume = false } = {}) {
   if (kind === 'drone') {
     player.state.enabled = false;
     boat.pause();
-    if (resume && drone.state.started) drone.resume();
-    else drone.activate(droneFlightPlan());
+    if (resume && drone.state.started) {
+      drone.resume();
+    } else {
+      drone.activate(droneFlightPlan());
+      // Fresh entry: the tutorial shows after the intro when nothing is found.
+      tutorialDoneThisEntry = false;
+      droneIntroWasActive = true;
+    }
     hud.setStatus(DRONE_STATUS);
   } else if (kind === 'boat') {
     player.state.enabled = false;
@@ -860,10 +912,15 @@ function returnToEntrance() {
   phase = 'menu';
   needsRender = true;
   player.state.enabled = false;
+  // A deliberate exit resets everything: the walk starts fresh from the
+  // entrance stairs next time, the drone replays its intro and the boat
+  // returns to the ghat.
+  player.reset();
   drone.deactivate();
   boat.exit();
   boat.resetToSpawn();
   boatNear = false;
+  boatHintShown = false;
   if (hud.showBoatPrompt) hud.showBoatPrompt(false);
   // A deliberate exit to the entrance wipes the gift hunt; pausing and
   // resuming (or switching tabs) keeps all progress.
@@ -1102,9 +1159,10 @@ document.addEventListener('pointerlockchange', () => {
   // The boat uses a seated camera without pointer lock, so losing the lock
   // there is expected and must not pause the ride.
   if (mode === 'boat') return;
-  // The gift hunt releases the cursor on purpose (prompt, question, blessing)
-  // so the player can click - do not treat that as an Esc pause.
+  // The gift hunt releases the cursor on purpose (prompt, question, blessing,
+  // tutorial) so the player can click - do not treat that as an Esc pause.
   if (game && game.isInteracting()) return;
+  if (tutorialOpen) return;
   if (document.pointerLockElement !== canvas && phase === 'playing') pause();
 });
 
@@ -1115,6 +1173,36 @@ document.addEventListener('visibilitychange', () => {
 let last = performance.now();
 let frameCount = 0;
 let needsRender = true;
+
+// One-time tutorial shown after the drone intro on a fresh hunt: point the
+// player at the first gift above the temple, then leave them to search.
+function showGameTutorial() {
+  tutorialOpen = true;
+  drone.state.enabled = false;
+  drone.state.velocity.set(0, 0, 0);
+  if (document.pointerLockElement) document.exitPointerLock();
+
+  hud.showTutorial({
+    title: '🎁 Gift Hunt',
+    body: `<p>Your first gift floats <b>above the temple roof</b>. Fly up to it, open it and answer the spiritual question to receive it.</p>
+      <p class="note">After that, search Mayapur on your own — 11 gifts are hidden across the dham.</p>`,
+    buttonText: 'Got it',
+    onClose: () => {
+      tutorialOpen = false;
+      drone.state.enabled = true;
+      const desktopPointer = window.matchMedia
+        && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+      if (desktopPointer && typeof drone.capturePointer === 'function') {
+        const attempt = drone.capturePointer();
+        if (attempt && typeof attempt.catch === 'function') {
+          attempt.catch(() => {
+            hud.setGameHint('Click anywhere to capture the cursor and keep flying', 4500);
+          });
+        }
+      }
+    },
+  });
+}
 
 function stepSimulation(dt) {
   for (const fn of animated) fn(dt);
@@ -1155,6 +1243,18 @@ function stepSimulation(dt) {
   }
 
   if (phase === 'menu') player.state.camYaw += dt * 0.03;
+
+  // The tutorial appears the moment the cinematic drone intro ends, but only
+  // on a fresh hunt (no gifts found yet).
+  const introActive = !!drone.state.intro;
+  if (droneIntroWasActive && !introActive && !tutorialOpen && mode === 'drone' && phase === 'playing') {
+    const found = game ? game.state().found : [];
+    if (found.length === 0 && !tutorialDoneThisEntry) {
+      tutorialDoneThisEntry = true;
+      showGameTutorial();
+    }
+  }
+  droneIntroWasActive = introActive;
 
   if (boatMode) {
     // While paused the boat holds its position on the water.

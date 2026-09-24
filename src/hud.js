@@ -16,6 +16,10 @@ export function createHud() {
   const giftFeedback = document.getElementById('gift-feedback');
   const blessingModal = document.getElementById('blessing-modal');
   const blessingClose = document.getElementById('blessing-close');
+  const tutorialModal = document.getElementById('tutorial-modal');
+  const tutorialTitle = document.getElementById('tutorial-title');
+  const tutorialBody = document.getElementById('tutorial-body');
+  const tutorialBtn = document.getElementById('tutorial-btn');
   const boatPrompt = document.getElementById('boat-prompt');
   const boatRideBtn = document.getElementById('boat-ride-btn');
 
@@ -25,6 +29,7 @@ export function createHud() {
   let giftOpenHandler = null;
   let boatRideHandler = null;
   let blessingCloseHandler = null;
+  let tutorialCloseHandler = null;
   let hintTimer = null;
 
   function showOverlay(visible, title, bodyHtml, buttonText, { modeChoice = false, droneButtonText = 'PLAY GAME' } = {}) {
@@ -207,6 +212,27 @@ export function createHud() {
     blessingModal.classList.remove('hidden');
   }
 
+  // One-time tutorial card (shown after the drone intro on a fresh hunt).
+  function showTutorial({ title, body, buttonText = 'Got it', onClose } = {}) {
+    if (!tutorialModal) return;
+    if (title && tutorialTitle) tutorialTitle.textContent = title;
+    if (body != null && tutorialBody) tutorialBody.innerHTML = body;
+    if (buttonText && tutorialBtn) tutorialBtn.textContent = buttonText;
+    tutorialCloseHandler = onClose || null;
+    tutorialModal.classList.remove('hidden');
+  }
+
+  if (tutorialBtn) {
+    bindTouchClick(tutorialBtn, () => {
+      tutorialModal.classList.add('hidden');
+      if (tutorialCloseHandler) {
+        const fn = tutorialCloseHandler;
+        tutorialCloseHandler = null;
+        fn();
+      }
+    });
+  }
+
   if (blessingClose) {
     bindTouchClick(blessingClose, () => {
       blessingModal.classList.add('hidden');
@@ -235,5 +261,6 @@ export function createHud() {
     openQuestion,
     closeQuestion,
     showBlessing,
+    showTutorial,
   };
 }

@@ -231,7 +231,8 @@ body {
 }
 
 #gift-modal,
-#blessing-modal {
+#blessing-modal,
+#tutorial-modal {
   position: fixed;
   inset: 0;
   display: flex;
@@ -246,6 +247,7 @@ body {
 
 #gift-modal.hidden,
 #blessing-modal.hidden,
+#tutorial-modal.hidden,
 #gift-prompt.hidden,
 #boat-prompt.hidden,
 #gift-hint.hidden,
@@ -267,6 +269,29 @@ body {
 .gift-card .gift-icon {
   font-size: 30px;
   margin-bottom: 8px;
+}
+
+#tutorial-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  opacity: 0.92;
+}
+
+#tutorial-body b {
+  color: #ffe9a8;
+}
+
+#tutorial-body .note {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.gift-card.tutorial h2 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  letter-spacing: 0.02em;
 }
 
 #gift-question {
@@ -338,7 +363,8 @@ body {
   opacity: 0.9;
 }
 
-#blessing-close {
+#blessing-close,
+#tutorial-btn {
   padding: 10px 20px;
   border-radius: 999px;
   border: 1px solid rgba(255, 215, 0, 0.55);
@@ -353,7 +379,8 @@ body {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  #blessing-close:hover {
+  #blessing-close:hover,
+  #tutorial-btn:hover {
     background: rgba(60, 48, 14, 0.95);
   }
 }
@@ -742,7 +769,8 @@ body {
     padding: 13px 14px;
     font-size: 14px;
   }
-  #blessing-close {
+  #blessing-close,
+  #tutorial-btn {
     min-height: 48px;
     padding: 12px 24px;
   }

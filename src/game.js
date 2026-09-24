@@ -612,6 +612,9 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
       }, 700);
     } else if (found.length === GIFT_TOTAL - 1) {
       startDelivery();
+    } else if (found.length === 1) {
+      // One-time nudge after the tutorial gift; from here the player searches.
+      hud.setGameHint('🎁 Now grab the next gift — search Mayapur on your own!', 9000);
     }
   }
 
