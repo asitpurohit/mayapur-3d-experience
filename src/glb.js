@@ -70,9 +70,10 @@ function putKrishnaOnPodium(scene, glbs, groundHeightAt, onLog = () => {}) {
   const cz = ENTRANCE.interior.altarZ || 55.0;
   const tier2Y = ENTRANCE.interior.hallY + 0.91; // 39.41
 
-  // Place him on the right side of the altar (from devotee's viewpoint facing the altar)
+  // Place him on the right side of the altar (from devotee's viewpoint facing the altar),
+  // a little ahead of Lord Narsimhadeva so he stands clear at the front of the altar.
   const kx = cx + 1.85;
-  const kz = cz + 0.9;
+  const kz = cz + 1.45;
   const pedH = 0.22;
 
   let pedestal = scene.getObjectByName('krishna-altar-pedestal');
@@ -189,6 +190,37 @@ function seatNarshimaOnTemple(scene, glbs, groundHeightAt, onLog = () => {}) {
   }
 
   onLog(`narshima seated on interior sanctum podium at (${cx.toFixed(1)}, ${cz.toFixed(1)}, y=${altarTableTopY.toFixed(2)})`);
+}
+
+// The scanned guru-and-devotees row sits at the very front of the tier 3 altar
+// table, directly in front of Lord Narsimhadeva. It is scaled to fit the clear
+// strip on the podium so nothing overhangs the table edge.
+function placeGuruOnAltar(scene, glbs, onLog = () => {}) {
+  const guru = glbs.find((o) => o.name === 'guru');
+  if (!guru) return;
+
+  guru.updateWorldMatrix(true, true);
+  let box = new THREE.Box3().setFromObject(guru);
+  if (!isFinite(box.min.x)) return;
+
+  const targetWidth = 1.7;
+  const width = box.max.x - box.min.x;
+  if (width > 0.001) guru.scale.multiplyScalar(targetWidth / width);
+
+  guru.updateWorldMatrix(true, true);
+  box = new THREE.Box3().setFromObject(guru);
+
+  const cx = ENTRANCE.doorX;
+  const cz = ENTRANCE.interior.altarZ || 55.0;
+  const tableTopY = ENTRANCE.interior.hallY + 1.53;
+
+  // Front strip of the table, clear of Lord Narsimhadeva's feet.
+  const gz = cz + 1.63;
+  guru.position.x += cx - (box.min.x + box.max.x) / 2;
+  guru.position.z += gz - (box.min.z + box.max.z) / 2;
+  guru.position.y += tableTopY - box.min.y;
+
+  onLog(`guru seated in front of narshima on the altar at (${cx.toFixed(1)}, ${gz.toFixed(1)}, y=${tableTopY.toFixed(2)})`);
 }
 
 const CACHE_NAME = 'mayapur-3d-cache-v1';
@@ -396,6 +428,7 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
 
   putKrishnaOnPodium(scene, added, groundHeightAt, onLog);
   seatNarshimaOnTemple(scene, added, groundHeightAt, onLog);
+  placeGuruOnAltar(scene, added, onLog);
 
   return added;
 }

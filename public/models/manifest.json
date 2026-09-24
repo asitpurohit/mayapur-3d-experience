@@ -24,6 +24,15 @@
     "name": "narshima"
   },
   {
+    "file": "guru.glb",
+    "x": 17.74,
+    "z": 56.6,
+    "rotY": 0,
+    "scale": 1,
+    "autoGround": false,
+    "name": "guru"
+  },
+  {
     "file": "prabhupada.glb",
     "x": 0,
     "z": 0,

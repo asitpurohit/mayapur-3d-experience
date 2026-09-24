@@ -146,13 +146,15 @@ function buildSideAltar(scene, { url, x, facing, z, width, height, ledgeLength, 
 }
 
 function hideSplash() {
+  stopMantraGame();
   const splash = document.getElementById('splash');
   if (splash) splash.classList.add('hidden');
 }
 
-// The 16-word maha-mantra as 16 buttons: they must be chanted in order, one
-// tap each, while the game loads. Loading always wins - the splash hides as
-// soon as the models are ready.
+// Maha-mantra catch game on the loading splash: the words fall from the top,
+// the player taps them in order and each one lights up in the mantra lines.
+// Sometimes two words fall together. Loading always wins - the splash hides
+// as soon as the models are ready.
 const MANTRA_LINES = [
   ['Hare', 'Krishna', 'Hare', 'Krishna'],
   ['Krishna', 'Krishna', 'Hare', 'Hare'],
@@ -160,8 +162,15 @@ const MANTRA_LINES = [
   ['Rama', 'Rama', 'Hare', 'Hare'],
 ];
 const MANTRA_WORDS = MANTRA_LINES.flat();
+const MANTRA_COLORS = ['#ffd166', '#ff9f43', '#ff8fab', '#74c0fc', '#8ce99a', '#b197fc'];
+
 let mantraIndex = 0;
-let mantraButtons = [];
+let mantraSlots = [];
+let fallingWords = [];
+let mantraRaf = null;
+let mantraLast = 0;
+let mantraSpawnTimer = 0;
+let mantraRunning = false;
 let mantraHintTimer = null;
 
 function flashMantraHint(text) {
@@ -171,23 +180,53 @@ function flashMantraHint(text) {
   hint.classList.add('flash');
   if (mantraHintTimer) clearTimeout(mantraHintTimer);
   mantraHintTimer = setTimeout(() => {
-    hint.textContent = 'Tap each word in order to chant';
+    hint.textContent = 'Catch the falling words in order';
     hint.classList.remove('flash');
   }, 1300);
 }
 
-function tapMantraWord(button, index) {
-  if (index !== mantraIndex) {
-    // Out of order: shake and point to the next button.
-    button.classList.remove('wrong');
-    void button.offsetWidth;
-    button.classList.add('wrong');
-    flashMantraHint('Click next button');
+function spawnFallingWord(index) {
+  const layer = document.getElementById('mantra-fall');
+  if (!layer || !mantraRunning) return;
+
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'mantra-fall-word';
+  el.textContent = MANTRA_WORDS[index];
+  el.style.background = MANTRA_COLORS[index % MANTRA_COLORS.length];
+  const x = 6 + Math.random() * 76;
+  el.style.left = `${x}%`;
+
+  const entry = { el, index, y: -64, vy: 85 + Math.random() * 55, done: false };
+  el.style.top = `${entry.y}px`;
+  el.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    catchFallingWord(entry);
+  });
+
+  layer.appendChild(el);
+  fallingWords.push(entry);
+}
+
+function catchFallingWord(entry) {
+  if (!mantraRunning || entry.done) return;
+
+  if (entry.index !== mantraIndex) {
+    entry.el.classList.remove('wrong');
+    void entry.el.offsetWidth;
+    entry.el.classList.add('wrong');
+    flashMantraHint('Catch the next word!');
     return;
   }
 
-  button.classList.remove('next');
-  button.classList.add('revealed');
+  entry.done = true;
+  entry.el.classList.add('caught');
+  const el = entry.el;
+  setTimeout(() => el.remove(), 320);
+
+  const slot = mantraSlots[entry.index];
+  if (slot) slot.classList.add('revealed');
   mantraIndex += 1;
   playCollect();
 
@@ -195,58 +234,100 @@ function tapMantraWord(button, index) {
     const done = document.getElementById('mantra-done');
     if (done) done.classList.remove('hidden');
     playQuestComplete();
-    return;
   }
-  const next = mantraButtons[mantraIndex];
-  if (next) next.classList.add('next');
 }
 
-function initMantra() {
+function updateMantraGame(now) {
+  if (!mantraRunning) return;
+  const dt = Math.min(0.05, (now - mantraLast) / 1000);
+  mantraLast = now;
+
+  const layer = document.getElementById('mantra-fall');
+  const height = layer ? layer.clientHeight : window.innerHeight;
+
+  for (const entry of fallingWords) {
+    if (entry.done) continue;
+    entry.y += entry.vy * dt;
+    entry.el.style.top = `${entry.y}px`;
+
+    if (entry.y > height + 24) {
+      if (entry.index === mantraIndex) {
+        // The needed word always comes back until it is caught.
+        entry.y = -64;
+        entry.el.style.left = `${6 + Math.random() * 76}%`;
+      } else {
+        entry.done = true;
+        entry.el.remove();
+      }
+    }
+  }
+  fallingWords = fallingWords.filter((entry) => !entry.done);
+
+  mantraSpawnTimer -= dt;
+  if (mantraIndex < MANTRA_WORDS.length && mantraSpawnTimer <= 0) {
+    const neededFalling = fallingWords.some((entry) => entry.index === mantraIndex);
+    if (!neededFalling) {
+      spawnFallingWord(mantraIndex);
+      // Sometimes a second word falls along with it.
+      if (Math.random() < 0.45 && mantraIndex + 1 < MANTRA_WORDS.length) {
+        spawnFallingWord(mantraIndex + 1);
+      }
+      mantraSpawnTimer = 1.2 + Math.random() * 1.4;
+    } else {
+      mantraSpawnTimer = 0.4;
+    }
+  }
+
+  mantraRaf = requestAnimationFrame(updateMantraGame);
+}
+
+function startMantraGame() {
   const wordsEl = document.getElementById('mantra-words');
   const done = document.getElementById('mantra-done');
   const hint = document.getElementById('mantra-hint');
   if (!wordsEl) return;
 
   wordsEl.innerHTML = '';
-  mantraButtons = [];
+  mantraSlots = [];
   mantraIndex = 0;
 
-  let flatIndex = 0;
   for (const line of MANTRA_LINES) {
     const row = document.createElement('div');
     row.className = 'mantra-line';
     for (const word of line) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'mantra-word';
-      button.textContent = word;
-      const index = flatIndex;
-      flatIndex += 1;
-
-      let lastTrigger = 0;
-      const trigger = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const now = Date.now();
-        if (now - lastTrigger < 300) return;
-        lastTrigger = now;
-        tapMantraWord(button, index);
-      };
-      button.addEventListener('click', trigger);
-      button.addEventListener('touchend', trigger);
-
-      row.appendChild(button);
-      mantraButtons.push(button);
+      const span = document.createElement('span');
+      span.className = 'mantra-word';
+      span.textContent = word;
+      row.appendChild(span);
+      mantraSlots.push(span);
     }
     wordsEl.appendChild(row);
   }
 
-  if (mantraButtons[0]) mantraButtons[0].classList.add('next');
+  for (const entry of fallingWords) entry.el.remove();
+  fallingWords = [];
   if (done) done.classList.add('hidden');
   if (hint) {
-    hint.textContent = 'Tap each word in order to chant';
+    hint.textContent = 'Catch the falling words in order';
     hint.classList.remove('flash');
   }
+
+  mantraRunning = true;
+  mantraSpawnTimer = 0;
+  mantraLast = performance.now();
+  mantraRaf = requestAnimationFrame(updateMantraGame);
+}
+
+function stopMantraGame() {
+  mantraRunning = false;
+  if (mantraRaf) cancelAnimationFrame(mantraRaf);
+  mantraRaf = null;
+  for (const entry of fallingWords) entry.el.remove();
+  fallingWords = [];
+}
+
+function initMantra() {
+  startMantraGame();
 }
 
 // Loading bar drawn over the cover art (no popup card while loading).
@@ -275,7 +356,7 @@ function attachDancerPlacards(dancers) {
       texture.colorSpace = THREE.SRGBColorSpace;
       const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.7, metalness: 0.05 });
       const stickMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4a26, roughness: 0.75 });
-      const stickGeometry = new THREE.CylinderGeometry(0.06, 0.072, 1.5, 6);
+      const stickGeometry = new THREE.CylinderGeometry(0.06, 0.072, 2.5, 6);
       // Half the previous size (the maha-mantra poster).
       const boardGeometry = new THREE.BoxGeometry(1.89, 2.82, 0.12);
       const imageGeometry = new THREE.PlaneGeometry(1.71, 2.55);
@@ -292,22 +373,23 @@ function attachDancerPlacards(dancers) {
 
         const placard = new THREE.Group();
 
-        // 1.5 m stick whose bottom end rests on the top of the figure.
+        // 2.5 m stick whose bottom end rests on the top of the figure.
         const stick = new THREE.Mesh(stickGeometry, stickMaterial);
-        stick.position.y = 0.75;
+        stick.position.y = 1.25;
         placard.add(stick);
 
         // Board mounted on top of the stick.
         const board = new THREE.Mesh(boardGeometry, frameMaterial);
-        board.position.y = 2.91;
+        board.position.y = 3.91;
         const image = new THREE.Mesh(imageGeometry, imageMaterial);
-        image.position.set(0, 2.91, 0.08);
+        image.position.set(0, 3.91, 0.08);
         placard.add(board, image);
 
         placard.scale.setScalar(inv);
         // The figure's front is its local +X: hold the board in front of the
-        // devotee and turn its face the same way the devotee faces.
-        placard.position.set(0.5 * inv, localTop, 0);
+        // devotee and turn its face the same way the devotee faces. The whole
+        // placard sits 1.5 m lower than the top of the figure.
+        placard.position.set(0.5 * inv, localTop - 1.5 * inv, 0);
         placard.rotation.y = Math.PI / 2;
         object.add(placard);
         // Keep a handle so the animation loop can sync the swing with the dance.
@@ -747,7 +829,7 @@ const PROGRESSIVE_LOADING = true;
 // kirtan-followers go together because the procession needs both.
 const DEFERRED_MODEL_GROUPS = [
   ['avatar'],
-  ['narshima'],
+  ['narshima', 'guru'],
   ['standin-temple'],
   ['terrain-figure'],
   ['terrain-orbit', 'kirtan-followers'],
@@ -760,7 +842,7 @@ async function loadDeferredModels(scene, glbs) {
         scene,
         groundHeightAt,
         names,
-        onLog: () => {},
+        onLog: (msg) => console.info('[glb]', msg),
         onProgress: () => {},
       });
       if (!loaded.length) continue;

@@ -40,32 +40,28 @@ body {
   object-fit: cover;
 }
 
-/* Maha-mantra chant over the cover art while the game loads. */
+/* Maha-mantra catch game over the cover art while the game loads: words
+   fall from the top, the player taps them in order and they light up in the
+   mantra lines below. Children-friendly colourful pills. */
 #splash-mantra {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: min(560px, 92%);
+  width: min(580px, 92%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  padding: 18px 16px;
-  border-radius: 18px;
-  background: rgba(8, 14, 22, 0.35);
-  border: 1px solid rgba(255, 215, 0, 0.28);
-  backdrop-filter: blur(9px);
-  -webkit-backdrop-filter: blur(9px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  padding: 14px 12px;
   text-align: center;
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 #mantra-words {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
 }
 
@@ -73,62 +69,29 @@ body {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 4px 6px;
+  gap: 6px;
 }
 
 .mantra-word {
-  padding: 4px 9px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  background: none;
-  font: inherit;
+  padding: 2px 8px;
   font-size: clamp(15px, 2.2vw, 22px);
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.05em;
-  color: rgba(255, 240, 200, 0.45);
+  color: transparent;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
-  cursor: pointer;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: rgba(255, 215, 0, 0.3);
-  transition: color 180ms ease, border-color 180ms ease;
-}
-
-.mantra-word.next {
-  border-color: rgba(255, 215, 0, 0.6);
-  color: #ffe9a8;
-  animation: promptPulse 1.6s ease-in-out infinite;
+  transition: color 200ms ease;
 }
 
 .mantra-word.revealed {
-  background: linear-gradient(180deg, #fff6cf, #ffd166 55%, #d9961c);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  border-color: transparent;
-  filter: drop-shadow(0 0 10px rgba(255, 200, 70, 0.45));
+  color: #ffe9a8;
+  text-shadow: 0 0 14px rgba(255, 200, 70, 0.65), 0 1px 6px rgba(0, 0, 0, 0.5);
   animation: mantraIn 360ms ease;
-}
-
-.mantra-word.wrong {
-  border-color: rgba(255, 120, 90, 0.75);
-  animation: mantraShake 320ms ease;
-}
-
-@keyframes mantraIn {
-  from { opacity: 0; transform: scale(0.65) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
-@keyframes mantraShake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-4px); }
-  75% { transform: translateX(4px); }
 }
 
 #mantra-hint {
   font-size: 12.5px;
   letter-spacing: 0.04em;
-  color: rgba(255, 240, 200, 0.75);
+  color: rgba(255, 240, 200, 0.85);
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
 }
 
@@ -150,6 +113,59 @@ body {
 
 #mantra-done.hidden {
   display: none;
+}
+
+/* Falling words layer */
+#mantra-fall {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.mantra-fall-word {
+  position: absolute;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  font: inherit;
+  font-size: clamp(16px, 2.2vw, 22px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #3a2a05;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255, 215, 0, 0.4);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.35);
+  will-change: top, left;
+}
+
+.mantra-fall-word.wrong {
+  border-color: #ff7a5a;
+  animation: mantraShake 320ms ease;
+}
+
+.mantra-fall-word.caught {
+  pointer-events: none;
+  animation: mantraPop 280ms ease forwards;
+}
+
+@keyframes mantraIn {
+  from { opacity: 0; transform: scale(0.7) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes mantraPop {
+  from { transform: scale(1); opacity: 1; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+
+@keyframes mantraShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
 }
 
 /* Loading bar sits over the cover art - no popup card during loading. */
@@ -939,10 +955,10 @@ body {
   #splash-mantra {
     width: 94%;
     gap: 9px;
-    padding: 14px 12px;
+    padding: 12px 8px;
   }
-  .mantra-word {
-    padding: 4px 7px;
+  .mantra-fall-word {
+    padding: 9px 14px;
   }
   #gift-counter {
     left: 64px;
