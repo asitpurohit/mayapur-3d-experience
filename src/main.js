@@ -50,9 +50,7 @@ const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mo
 const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pause';
 
 function menuBody() {
-  const count = getCachedVisitorCount().toLocaleString();
   return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
-    <p class="note" style="color: #ffd885; margin: 8px 0; font-weight: 600;">🛕 <b>${count}</b> pilgrims have entered Sri Mayapur Dham</p>
     <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>`;
 }
 
@@ -982,15 +980,6 @@ async function boot() {
   hud.setVisitorCount(getCachedVisitorCount());
   fetchCurrentCount().then((count) => {
     hud.setVisitorCount(count);
-    if (phase === 'menu') {
-      hud.showOverlay(
-        true,
-        'ISKCON Mayapur',
-        menuBody(),
-        'Enter Temple',
-        { modeChoice: true },
-      );
-    }
   }).catch(() => {});
 
   // Pre-compile all shaders and warm textures before hiding splash so everything is ready
