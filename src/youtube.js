@@ -245,8 +245,6 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     }
   }
 
-  const nextBtn = document.getElementById('music-next-btn');
-
   function bindTouchClick(el, onAction) {
     if (!el) return;
     let lastTime = 0;
@@ -268,12 +266,6 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     bindTouchClick(pillElement, toggle);
     pillElement.addEventListener('dblclick', (e) => {
       e.stopPropagation();
-      skip();
-    });
-  }
-
-  if (nextBtn) {
-    bindTouchClick(nextBtn, () => {
       skip();
     });
   }

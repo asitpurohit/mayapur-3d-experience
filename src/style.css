@@ -317,9 +317,7 @@ body {
 }
 
 #fullscreen-btn,
-#music-pill,
-#music-next-btn,
-#rotate-btn {
+#music-pill {
   position: static;
   pointer-events: auto;
   cursor: pointer;
@@ -337,17 +335,13 @@ body {
 }
 
 #fullscreen-btn:hover,
-#music-pill:hover,
-#music-next-btn:hover,
-#rotate-btn:hover {
+#music-pill:hover {
   background: rgba(18, 30, 44, 0.85);
   border-color: rgba(255, 215, 0, 0.4);
 }
 
 #fullscreen-btn:active,
-#music-pill:active,
-#music-next-btn:active,
-#rotate-btn:active {
+#music-pill:active {
   background: rgba(255, 215, 0, 0.35);
   border-color: rgba(255, 215, 0, 0.8);
   transform: scale(0.95);
@@ -705,57 +699,12 @@ body {
     gap: 6px;
   }
   #fullscreen-btn,
-  #music-pill,
-  #music-next-btn,
-  #rotate-btn {
+  #music-pill {
     padding: 7px 11px;
     font-size: 12px;
     min-height: 38px;
     border-radius: 8px;
   }
-}
-
-/* --- Non-Blocking Mobile Rotation Banner --- */
-.rotate-banner {
-  position: fixed;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  background: rgba(12, 22, 34, 0.94);
-  border: 1px solid rgba(255, 215, 0, 0.55);
-  border-radius: 24px;
-  color: #f7ecd5;
-  font-size: 13px;
-  font-weight: 550;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  z-index: 50;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
-  pointer-events: auto;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.rotate-banner.hidden {
-  display: none !important;
-}
-
-#rotate-banner-close {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.65);
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  padding: 0 4px;
-}
-
-#rotate-banner-close:hover {
-  color: #fff;
 }
 
 /* Force Landscape CSS Rotation (for devices with hardware portrait lock enabled) */
