@@ -51,7 +51,6 @@ const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pau
 
 function menuBody() {
   return `<p>Take an aerial tour of Sri Mayapur Dham, fly across the grand temple, cruise on the sacred Ganga, and search for the 11 hidden spiritual gifts!</p>
-    <p class="note"><b>🕊️ Darshan Parikrama:</b> Watch Srila Prabhupada walk peacefully up the 40 grand steps for darshan of Lord Narsimhadev.</p>
     <p class="note"><b>🎁 Gift Hunt:</b> Fly close to gifts, open them, and answer spiritual questions to receive divine blessings.</p>`;
 }
 
