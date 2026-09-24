@@ -30,6 +30,7 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
   let playerReady = false;
   let startRequested = false;
   let pendingNewTrack = false;
+  let specialPlaying = false;
   let isPlaying = false;
 
   function pickNextTrackId() {
@@ -46,13 +47,13 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
   const updatePill = (playing) => {
     if (!pillElement) return;
     if (playing) {
-      pillElement.textContent = '🔊 Kirtan';
+      pillElement.textContent = specialPlaying ? '🙏 Arati' : '🔊 Kirtan';
       pillElement.classList.add('playing');
-      pillElement.setAttribute('title', 'Playing Kirtan · Tap to pause · Tap ⏭ Next to change track');
+      pillElement.setAttribute('title', 'Tap to pause');
     } else {
-      pillElement.textContent = '🔈 Kirtan (Paused)';
+      pillElement.textContent = specialPlaying ? '🙏 Arati (Paused)' : '🔈 Kirtan (Paused)';
       pillElement.classList.remove('playing');
-      pillElement.setAttribute('title', 'Kirtan paused · Tap to play · Tap ⏭ Next to change track');
+      pillElement.setAttribute('title', 'Tap to play');
     }
   };
 
@@ -223,6 +224,7 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
   }
 
   function skip() {
+    specialPlaying = false;
     const nextId = pickNextTrackId();
     if (player && typeof player.loadVideoById === 'function') {
       try {
@@ -246,6 +248,26 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
       return;
     }
     pendingNewTrack = true;
+  }
+
+  // Play a specific devotional track (e.g. the arati bhajan) from a start
+  // time, replacing the background kirtan in the same player.
+  function playSpecialTrack(videoId, startSeconds = 0) {
+    if (!player || !playerReady || typeof player.loadVideoById !== 'function') return false;
+    try {
+      if (typeof player.unMute === 'function') player.unMute();
+      player.loadVideoById({ videoId, startSeconds });
+      applyVolume(currentVolume, { fade: true });
+      player.playVideo();
+      isPlaying = true;
+      specialPlaying = true;
+      startRequested = false;
+      updatePill(true);
+      return true;
+    } catch (error) {
+      console.warn('[youtube] Special track error:', error);
+      return false;
+    }
   }
 
   function requestPlayback() {
@@ -284,5 +306,5 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     });
   }
 
-  return { play, pause, toggle, skip, requestNewTrack, setVolume, getVolume, setDuck, pickNextTrackId };
+  return { play, pause, toggle, skip, requestNewTrack, playSpecialTrack, setVolume, getVolume, setDuck, pickNextTrackId };
 }

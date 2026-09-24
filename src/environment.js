@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { valueNoise2 } from './noise.js';
-import { ENTRANCE } from './entrance.js';
+import { ENTRANCE, insideTempleFootprint } from './entrance.js';
 import { getAudioContext } from './audio.js';
 
 const SKY_TOP_DAWN = new THREE.Color(0x4f82be);
@@ -1518,7 +1518,14 @@ export function createEnvironment({ scene }) {
     }
     stormClouds.visible = cloudArrival > 0.01;
     if (stormCloudMat) stormCloudMat.opacity = cloudArrival * 0.64;
-    rain.material.opacity = rainAmount * 0.42;
+
+    // Rain must never fall inside the temple: hide the rain volume while the
+    // viewer is under the temple roof.
+    const underTempleRoof = !!camera
+      && insideTempleFootprint(camera.position.x, camera.position.z, 2)
+      && camera.position.y < ENTRANCE.temple.maxY + 4;
+    rain.visible = !underTempleRoof && rainAmount > 0.01;
+    rain.material.opacity = underTempleRoof ? 0 : rainAmount * 0.42;
 
     // Low, wind-driven ripples and gently drifting boats on the Ganga.
     river.userData.update(dt);
@@ -1535,7 +1542,7 @@ export function createEnvironment({ scene }) {
       c.position.y = c.userData.baseY + Math.sin(sunElapsed * 0.34 + c.userData.phase) * 4;
     }
 
-    if (camera && rainAmount > 0) {
+    if (camera && rainAmount > 0 && rain.visible) {
       rain.position.copy(camera.position);
       stepRain(rain, dt);
     }

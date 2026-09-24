@@ -261,7 +261,7 @@ async function fetchBlobWithCache(url, onProgress) {
  * Load GLB drop-ins from /public/models with persistent device caching and concurrent downloads.
  * Manifest can be a JSON array of { file, x, z, rotY, scale, targetSize } or bare filenames.
  */
-export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, onProgress = () => {} }) {
+export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, onProgress = () => {}, names = null }) {
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const added = [];
@@ -284,6 +284,12 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
     for (const name of ['temple', 'shrine', 'rock', 'boulder', 'tree', 'house']) {
       slots.push({ file: `${name}.glb` });
     }
+  }
+
+  if (names) {
+    const wanted = new Set(names);
+    const keep = (slot) => wanted.has(slot.name || String(slot.file).replace(/\.glb$/i, ''));
+    slots.splice(0, slots.length, ...slots.filter(keep));
   }
 
   const slotProgress = new Map();

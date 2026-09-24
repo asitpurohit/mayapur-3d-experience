@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { groundHeightAt, slopeAt } from './terrain.js';
 
 const SETTINGS = {
-  walkSpeed: 4.2,
-  runSpeed: 8.0,
+  walkSpeed: 12.6,
+  runSpeed: 32.0,
   acceleration: 12,
   friction: 10,
   gravity: 22,

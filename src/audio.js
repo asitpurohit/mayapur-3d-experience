@@ -1,11 +1,30 @@
 let audioContext = null;
+let intentionallySuspended = false;
 
 export function getAudioContext() {
   const AudioContextClass = window.AudioContext || window.webkitAudioContext;
   if (!AudioContextClass) return null;
   if (!audioContext) audioContext = new AudioContextClass();
-  if (audioContext.state === 'suspended') audioContext.resume().catch(() => {});
+  if (audioContext.state === 'suspended' && !intentionallySuspended) {
+    audioContext.resume().catch(() => {});
+  }
   return audioContext;
+}
+
+// Fully silence every WebAudio sound (rain, thunder, chimes) - used when the
+// player deliberately leaves the game.
+export function suspendAudio() {
+  intentionallySuspended = true;
+  if (audioContext && audioContext.state === 'running') {
+    audioContext.suspend().catch(() => {});
+  }
+}
+
+export function resumeAudio() {
+  intentionallySuspended = false;
+  if (audioContext && audioContext.state === 'suspended') {
+    audioContext.resume().catch(() => {});
+  }
 }
 
 export function playChime({

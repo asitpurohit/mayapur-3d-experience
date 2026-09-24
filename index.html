@@ -15,6 +15,11 @@
         <source media="(orientation: portrait)" srcset="/images/splash-portrait.webp" />
         <img src="/images/splash.webp" alt="Mayapur Treasure Hunt" />
       </picture>
+      <div id="splash-mantra">
+        <div id="mantra-words"></div>
+        <div id="mantra-hint">Tap each word in order to chant</div>
+        <div id="mantra-done" class="hidden">🙏 Hare Krishna</div>
+      </div>
       <div id="splash-progress">
         <div class="splash-bar-bg"><div id="splash-bar"></div></div>
         <div id="splash-label">Loading…</div>
@@ -31,6 +36,9 @@
       <div id="boat-prompt" class="hidden">
         <button id="boat-ride-btn" type="button">⛵ Ride boat <span class="key">F</span></button>
       </div>
+      <div id="arati-prompt" class="hidden">
+        <button id="arati-btn" type="button">🙏 Offer arati <span class="key">F</span></button>
+      </div>
       <div id="status" class="panel">[WASD] walk · [Shift] run · [Space] jump · [Esc] pause</div>
       <div id="gift-modal" class="hidden">
         <div class="gift-card">
@@ -43,13 +51,13 @@
       <div id="blessing-modal" class="hidden">
         <div class="gift-card blessing">
           <div class="gift-icon">🙏</div>
-          <h2>Blessing Received</h2>
+          <h2 class="blessed-title">BLESSED</h2>
           <p>You found all 11 gifts hidden across Mayapur Dham. May Lord Narsimhadeva and Sri Chaitanya Mahaprabhu bless your journey.</p>
           <button id="blessing-close" type="button">Continue exploring</button>
         </div>
       </div>
       <div id="tutorial-modal" class="hidden">
-        <div class="gift-card tutorial">
+        <div class="gift-card tutorial compact">
           <div class="gift-icon">🎁</div>
           <h2 id="tutorial-title">Gift Hunt</h2>
           <div id="tutorial-body"></div>

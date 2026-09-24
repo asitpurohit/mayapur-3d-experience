@@ -279,7 +279,7 @@ function releasePointerLock() {
   }
 }
 
-export function createGame({ scene, hud, helicopter, drone, boat = null, villagePoints = [], farmPoints = [], temple }) {
+export function createGame({ scene, hud, helicopter, drone, boat = null, villagePoints = [], farmPoints = [], temple, onBlessing = null }) {
   const found = loadFound();
   const templeBounds = temple || {
     minX: ENTRANCE.temple.minX,
@@ -603,6 +603,7 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
       stopVehicle(vehicle);
       releasePointerLock();
       setTimeout(() => {
+        if (typeof onBlessing === 'function') onBlessing();
         hud.showBlessing({
           onClose: () => {
             celebrating = false;

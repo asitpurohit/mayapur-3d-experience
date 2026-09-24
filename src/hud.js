@@ -22,12 +22,15 @@ export function createHud() {
   const tutorialBtn = document.getElementById('tutorial-btn');
   const boatPrompt = document.getElementById('boat-prompt');
   const boatRideBtn = document.getElementById('boat-ride-btn');
+  const aratiPrompt = document.getElementById('arati-prompt');
+  const aratiBtn = document.getElementById('arati-btn');
 
   let fpsAccum = 0;
   let fpsFrames = 0;
   let fpsValue = 0;
   let giftOpenHandler = null;
   let boatRideHandler = null;
+  let aratiHandler = null;
   let blessingCloseHandler = null;
   let tutorialCloseHandler = null;
   let hintTimer = null;
@@ -150,6 +153,21 @@ export function createHud() {
     boatPrompt.classList.toggle('hidden', !visible);
   }
 
+  function onArati(fn) {
+    aratiHandler = fn;
+  }
+
+  if (aratiBtn) {
+    bindTouchClick(aratiBtn, () => {
+      if (aratiHandler) aratiHandler();
+    });
+  }
+
+  function showAratiPrompt(visible) {
+    if (!aratiPrompt) return;
+    aratiPrompt.classList.toggle('hidden', !visible);
+  }
+
   function setGameHint(text, duration = 9000) {
     if (!giftHint) return;
     if (hintTimer) {
@@ -257,6 +275,8 @@ export function createHud() {
     showGiftPrompt,
     onBoatRide,
     showBoatPrompt,
+    onArati,
+    showAratiPrompt,
     setGameHint,
     openQuestion,
     closeQuestion,

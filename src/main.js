@@ -14,7 +14,10 @@ import { buildPath } from './path.js';
 import { createHud } from './hud.js';
 import { createDrone } from './drone.js';
 import { createBoat } from './boat.js';
+import { createArati } from './arati.js';
+import { createBlessing } from './blessing.js';
 import { createYouTubeMusic } from './youtube.js';
+import { suspendAudio, resumeAudio, playCollect, playQuestComplete } from './audio.js';
 import { createGame } from './game.js';
 import { createTouchControls } from './touch-controls.js';
 import { loadGlbModels, glbHelpText } from './glb.js';
@@ -31,6 +34,8 @@ let world = null;
 let player = null;
 let drone = null;
 let boat = null;
+let arati = null;
+let blessing = null;
 let boatNear = false;
 let boatHintShown = false;
 let tutorialOpen = false;
@@ -90,9 +95,158 @@ function buildEntrancePortalLining(scene) {
   return group;
 }
 
+// Large framed altar pictures on both hall side walls, each with a marble
+// ledge beneath so they read as side altars.
+function buildSideAltar(scene, { url, x, facing, z, width, height, ledgeLength, bottomY = 38.8 }) {
+  const loader = new THREE.TextureLoader();
+  loader.load(
+    url,
+    (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+
+      const group = new THREE.Group();
+      group.name = 'temple-side-altar';
+
+      const frameHeight = height + 0.31;
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(width + 0.3, frameHeight, 0.14),
+        new THREE.MeshStandardMaterial({ color: 0xb8860b, roughness: 0.4, metalness: 0.6 }),
+      );
+      frame.castShadow = true;
+      frame.receiveShadow = true;
+
+      const image = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, height),
+        new THREE.MeshBasicMaterial({ map: texture }),
+      );
+      image.position.z = 0.08;
+
+      group.add(frame, image);
+      group.position.set(x, bottomY + frameHeight / 2, z);
+      group.rotation.y = facing;
+      scene.add(group);
+
+      // Marble ledge under the picture, like a small side altar (optional).
+      if (!ledgeLength) return;
+      const dir = facing === Math.PI / 2 ? 1 : -1;
+      const ledge = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.22, ledgeLength),
+        new THREE.MeshStandardMaterial({ color: 0xe8e2d6, roughness: 0.6, metalness: 0.05 }),
+      );
+      ledge.position.set(x + dir * 0.2, 38.62, z);
+      ledge.castShadow = true;
+      ledge.receiveShadow = true;
+      scene.add(ledge);
+    },
+    undefined,
+    () => {
+      // Image missing: no side altar.
+    },
+  );
+}
+
 function hideSplash() {
   const splash = document.getElementById('splash');
   if (splash) splash.classList.add('hidden');
+}
+
+// The 16-word maha-mantra as 16 buttons: they must be chanted in order, one
+// tap each, while the game loads. Loading always wins - the splash hides as
+// soon as the models are ready.
+const MANTRA_LINES = [
+  ['Hare', 'Krishna', 'Hare', 'Krishna'],
+  ['Krishna', 'Krishna', 'Hare', 'Hare'],
+  ['Hare', 'Rama', 'Hare', 'Rama'],
+  ['Rama', 'Rama', 'Hare', 'Hare'],
+];
+const MANTRA_WORDS = MANTRA_LINES.flat();
+let mantraIndex = 0;
+let mantraButtons = [];
+let mantraHintTimer = null;
+
+function flashMantraHint(text) {
+  const hint = document.getElementById('mantra-hint');
+  if (!hint) return;
+  hint.textContent = text;
+  hint.classList.add('flash');
+  if (mantraHintTimer) clearTimeout(mantraHintTimer);
+  mantraHintTimer = setTimeout(() => {
+    hint.textContent = 'Tap each word in order to chant';
+    hint.classList.remove('flash');
+  }, 1300);
+}
+
+function tapMantraWord(button, index) {
+  if (index !== mantraIndex) {
+    // Out of order: shake and point to the next button.
+    button.classList.remove('wrong');
+    void button.offsetWidth;
+    button.classList.add('wrong');
+    flashMantraHint('Click next button');
+    return;
+  }
+
+  button.classList.remove('next');
+  button.classList.add('revealed');
+  mantraIndex += 1;
+  playCollect();
+
+  if (mantraIndex >= MANTRA_WORDS.length) {
+    const done = document.getElementById('mantra-done');
+    if (done) done.classList.remove('hidden');
+    playQuestComplete();
+    return;
+  }
+  const next = mantraButtons[mantraIndex];
+  if (next) next.classList.add('next');
+}
+
+function initMantra() {
+  const wordsEl = document.getElementById('mantra-words');
+  const done = document.getElementById('mantra-done');
+  const hint = document.getElementById('mantra-hint');
+  if (!wordsEl) return;
+
+  wordsEl.innerHTML = '';
+  mantraButtons = [];
+  mantraIndex = 0;
+
+  let flatIndex = 0;
+  for (const line of MANTRA_LINES) {
+    const row = document.createElement('div');
+    row.className = 'mantra-line';
+    for (const word of line) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mantra-word';
+      button.textContent = word;
+      const index = flatIndex;
+      flatIndex += 1;
+
+      let lastTrigger = 0;
+      const trigger = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const now = Date.now();
+        if (now - lastTrigger < 300) return;
+        lastTrigger = now;
+        tapMantraWord(button, index);
+      };
+      button.addEventListener('click', trigger);
+      button.addEventListener('touchend', trigger);
+
+      row.appendChild(button);
+      mantraButtons.push(button);
+    }
+    wordsEl.appendChild(row);
+  }
+
+  if (mantraButtons[0]) mantraButtons[0].classList.add('next');
+  if (done) done.classList.add('hidden');
+  if (hint) {
+    hint.textContent = 'Tap each word in order to chant';
+    hint.classList.remove('flash');
+  }
 }
 
 // Loading bar drawn over the cover art (no popup card while loading).
@@ -116,15 +270,15 @@ function setSplashProgress(percent, item) {
 function attachDancerPlacards(dancers) {
   const loader = new THREE.TextureLoader();
   loader.load(
-    '/images/dancer-placard.webp',
+    '/images/dancer-placard-mantra.webp',
     (texture) => {
       texture.colorSpace = THREE.SRGBColorSpace;
       const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.7, metalness: 0.05 });
       const stickMaterial = new THREE.MeshStandardMaterial({ color: 0x6b4a26, roughness: 0.75 });
-      const stickGeometry = new THREE.CylinderGeometry(0.03, 0.036, 0.5, 6);
-      // Board and image are 3x bigger so the deity is clearly visible.
-      const boardGeometry = new THREE.BoxGeometry(0.945, 1.41, 0.06);
-      const imageGeometry = new THREE.PlaneGeometry(0.855, 1.275);
+      const stickGeometry = new THREE.CylinderGeometry(0.06, 0.072, 1.0, 6);
+      // Half the previous size (the maha-mantra poster).
+      const boardGeometry = new THREE.BoxGeometry(1.89, 2.82, 0.12);
+      const imageGeometry = new THREE.PlaneGeometry(1.71, 2.55);
       const imageMaterial = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
 
       for (const dancer of dancers) {
@@ -138,22 +292,26 @@ function attachDancerPlacards(dancers) {
 
         const placard = new THREE.Group();
 
-        // 0.5 m stick whose bottom end rests on the top of the figure.
+        // 1 m stick whose bottom end rests on the top of the figure.
         const stick = new THREE.Mesh(stickGeometry, stickMaterial);
-        stick.position.y = 0.25;
+        stick.position.y = 0.5;
         placard.add(stick);
 
         // Board mounted on top of the stick.
         const board = new THREE.Mesh(boardGeometry, frameMaterial);
-        board.position.y = 1.205;
+        board.position.y = 2.41;
         const image = new THREE.Mesh(imageGeometry, imageMaterial);
-        image.position.set(0, 1.205, 0.04);
+        image.position.set(0, 2.41, 0.08);
         placard.add(board, image);
 
         placard.scale.setScalar(inv);
-        placard.position.set(0, localTop, 0.5 * inv);
-        placard.rotation.x = 0.08;
+        // The figure's front is its local +X: hold the board in front of the
+        // devotee and turn its face the same way the devotee faces.
+        placard.position.set(0.5 * inv, localTop, 0);
+        placard.rotation.y = Math.PI / 2;
         object.add(placard);
+        // Keep a handle so the animation loop can sync the swing with the dance.
+        object.userData.placard = placard;
       }
     },
     undefined,
@@ -318,11 +476,310 @@ function createCamera() {
   return camera;
 }
 
+// Wires whichever GLB models are present in `glbs` into the scene. Called
+// once after the first (temple) load, then again for each group streamed in
+// later, so missing models are simply skipped.
+function wireGlbModels(scene, glbs) {
+const krishna = glbs.find((o) => o.name === 'standin-temple');
+if (krishna) {
+  const baseY = krishna.position.y;
+  let animT = Math.random() * 10;
+  animated.push((dt) => {
+    animT += dt;
+    krishna.rotation.y += dt * 0.9;
+    const hop = Math.max(0, Math.sin(animT * 2.4)) ** 2 * 0.45;
+    krishna.position.y = baseY + hop;
+  });
+}
+
+const terrainFigure = glbs.find((o) => o.name === 'terrain-figure');
+if (terrainFigure) {
+  const templeBounds = ENTRANCE.temple;
+  const templeCenter = {
+    x: (templeBounds.minX + templeBounds.maxX) / 2,
+    z: (templeBounds.minZ + templeBounds.maxZ) / 2,
+  };
+  const size = new THREE.Box3().setFromObject(terrainFigure).getSize(new THREE.Vector3());
+  // The imported figure faces inward, so its local depth becomes its side-to-side footprint.
+  const priorHeightRatio = 7 / 5;
+  const sideDistance = ENTRANCE.stairs.halfW + (size.z * priorHeightRatio) / 2 + 1.2 + 5;
+  const requestedDanceZ = ENTRANCE.stairs.zTop + 4 - 5;
+  const danceZ = Math.max(requestedDanceZ, templeBounds.maxZ + (size.x * priorHeightRatio) / 2 + 0.6) + 4;
+  const leftFigure = terrainFigure.clone(true);
+  leftFigure.name = 'terrain-figure-west';
+  scene.add(leftFigure);
+  const dancers = [
+    { object: leftFigure, side: -1, phase: 0 },
+    { object: terrainFigure, side: 1, phase: 0 },
+  ];
+  // Extra copies of the swaying figure so pilgrims meet them in other places.
+  const extraSpots = [
+    { x: -388, z: -198, heading: Math.PI, phase: 1.2 },
+    { x: 140, z: -20, heading: Math.PI / 2, phase: 2.7 },
+    { x: -146, z: 26, heading: 0, phase: 4.3 },
+  ];
+  const extraDancers = extraSpots.map((spot, i) => {
+    const figure = terrainFigure.clone(true);
+    figure.name = `terrain-figure-${i}`;
+    scene.add(figure);
+    return { object: figure, ...spot };
+  });
+  attachDancerPlacards([...dancers, ...extraDancers]);
+  const footOffset = terrainFigure.userData.footOffset || 0;
+  let danceT = 0;
+  animated.push((dt) => {
+    danceT += dt;
+    for (const dancer of dancers) {
+      const rhythm = danceT * 1.65 + dancer.phase;
+      const baseX = templeCenter.x + dancer.side * sideDistance;
+      const x = baseX + Math.sin(rhythm * 0.58) * 0.32;
+      const z = danceZ + Math.cos(rhythm * 0.58) * 0.32;
+
+      dancer.object.position.set(
+        x,
+        groundHeightAt(x, z) + footOffset + Math.max(0, Math.sin(rhythm * 2.1)) * 0.14,
+        z,
+      );
+      const turn = (1 - Math.cos(rhythm * 0.9)) / 2;
+      const leftwardOffset = dancer.side > 0 ? THREE.MathUtils.degToRad(40) : 0;
+      dancer.object.rotation.y = -Math.PI / 2 + turn * (Math.PI / 2) - leftwardOffset;
+      dancer.object.rotation.x = Math.sin(rhythm * 1.3) * 0.035;
+      dancer.object.rotation.z = Math.sin(rhythm * 1.7) * 0.065;
+
+      // Keep the held placard swaying with the devotee but steadier, so it
+      // reads as being carried in the hand.
+      const placard = dancer.object.userData.placard;
+      if (placard) {
+        placard.rotation.x = -dancer.object.rotation.x * 0.6;
+        placard.rotation.z = -dancer.object.rotation.z * 0.6;
+      }
+    }
+    for (const dancer of extraDancers) {
+      const rhythm = danceT * 1.65 + dancer.phase;
+      const x = dancer.x + Math.sin(rhythm * 0.58) * 0.3;
+      const z = dancer.z + Math.cos(rhythm * 0.58) * 0.3;
+
+      dancer.object.position.set(
+        x,
+        groundHeightAt(x, z) + footOffset + Math.max(0, Math.sin(rhythm * 2.1)) * 0.14,
+        z,
+      );
+      const turn = (1 - Math.cos(rhythm * 0.9)) / 2;
+      dancer.object.rotation.y = dancer.heading + turn * 0.6;
+      dancer.object.rotation.x = Math.sin(rhythm * 1.3) * 0.035;
+      dancer.object.rotation.z = Math.sin(rhythm * 1.7) * 0.065;
+
+      const placard = dancer.object.userData.placard;
+      if (placard) {
+        placard.rotation.x = -dancer.object.rotation.x * 0.6;
+        placard.rotation.z = -dancer.object.rotation.z * 0.6;
+      }
+    }
+  });
+}
+
+const terrainOrbit = glbs.find((o) => o.name === 'terrain-orbit');
+const kirtanFollowers = glbs.find((o) => o.name === 'kirtan-followers');
+if (terrainOrbit) {
+  const orbitFootOffset = terrainOrbit.userData.footOffset || 0;
+  // The GLB is high-poly; skip its dynamic shadow-map passes so it does not
+  // make walking controls stutter while it moves.
+  const skipDynamicShadows = (root) => {
+    root.traverse((part) => {
+      if (part.isMesh) {
+        part.castShadow = false;
+        part.receiveShadow = false;
+      }
+    });
+  };
+  skipDynamicShadows(terrainOrbit);
+  if (kirtanFollowers) skipDynamicShadows(kirtanFollowers);
+  const followerFootOffset = kirtanFollowers?.userData.footOffset || 0;
+
+  // A two-lane, left-side temple route with broad U-turns at both ends:
+  // from beside the temple down the slope, then smoothly back uphill.
+  const templePath = makeLoopPath(({ points, appendLine, appendArc }) => {
+    points.push({ x: -37, z: 106 });
+    appendLine(-37, 170);
+    appendArc(-61, 170, 0, Math.PI);
+    appendLine(-85, 106);
+    appendArc(-61, 106, Math.PI, Math.PI * 2);
+  });
+
+  // More roads where pilgrims meet the dancing devotees: the ghat
+  // riverbank, around the east village hamlet, and along a black asphalt
+  // street of the city (city.js roads sit at y = -3.60).
+  const ghatPath = makeLoopPath(({ points, appendLine, appendArc }) => {
+    points.push({ x: -460, z: -160 });
+    appendLine(-310, -160);
+    appendArc(-310, -174, Math.PI / 2, -Math.PI / 2, 14);
+    appendLine(-460, -188);
+    appendArc(-460, -174, -Math.PI / 2, -Math.PI * 1.5, 14);
+  });
+  const villagePath = makeCirclePath(128, -12, 46);
+  const blackRoadPath = makeRoadLanePath(245, -260, 260);
+
+  const processions = [
+    { rath: terrainOrbit, followers: kirtanFollowers, path: templePath, speed: 5, gap: 60, distance: 0 },
+  ];
+
+  // The rath stays only on its temple route. Elsewhere we copy just the
+  // dancing devotees, so pilgrims meet them moving along other roads.
+  const dancingCrowds = [
+    { name: 'ghat', path: ghatPath, speed: 4.2, offset: 0 },
+    { name: 'village', path: villagePath, speed: 4.6, offset: 60 },
+    { name: 'black-road-1', path: blackRoadPath, speed: 4.4, offset: 120, surfaceY: -3.6 },
+  ];
+
+  // Eight more dancing crowds far apart on the city's black asphalt streets.
+  const extraBlackRoadSegments = [
+    { z: -610, x1: -600, x2: -250 },
+    { z: -610, x1: 250, x2: 600 },
+    { z: -515, x1: -600, x2: -250 },
+    { z: -515, x1: 250, x2: 600 },
+    { z: 340, x1: -600, x2: -250 },
+    { z: 340, x1: 250, x2: 600 },
+    { z: 435, x1: -600, x2: -250 },
+    { z: 435, x1: 250, x2: 600 },
+  ];
+  extraBlackRoadSegments.forEach((segment, i) => {
+    dancingCrowds.push({
+      name: `black-road-${i + 2}`,
+      path: makeRoadLanePath(segment.z, segment.x1, segment.x2),
+      speed: 4 + (i % 3) * 0.3,
+      offset: (i * 95) % 480,
+      surfaceY: -3.6,
+    });
+  });
+
+  if (kirtanFollowers) {
+    for (const crowd of dancingCrowds) {
+      const followers = kirtanFollowers.clone(true);
+      followers.name = `kirtan-followers-${crowd.name}`;
+      scene.add(followers);
+      processions.push({
+        rath: null,
+        followers,
+        path: crowd.path,
+        speed: crowd.speed,
+        gap: 0,
+        distance: crowd.offset,
+        surfaceY: crowd.surfaceY,
+      });
+    }
+  }
+
+  animated.push((dt) => {
+    for (const procession of processions) {
+      procession.distance = (procession.distance + dt * procession.speed) % procession.path.length;
+      const { x, z } = procession.path.pointAt(procession.distance);
+      const next = procession.path.pointAt(procession.distance + 1);
+
+      if (procession.rath) {
+        procession.rath.position.set(x, groundHeightAt(x, z) + orbitFootOffset + 2, z);
+        // This rath's forward axis is local +X, not Three.js's usual +Z.
+        procession.rath.rotation.y = Math.atan2(next.x - x, next.z - z) - Math.PI / 2;
+      }
+
+      if (procession.followers) {
+        const followerDistance = procession.distance + procession.gap;
+        const follower = procession.path.pointAt(followerDistance);
+        const followerAhead = procession.path.pointAt(followerDistance + 1);
+        const dance = procession.distance * 0.9;
+        const surface = procession.surfaceY != null
+          ? procession.surfaceY
+          : groundHeightAt(follower.x, follower.z);
+        procession.followers.position.set(
+          follower.x,
+          surface + followerFootOffset + Math.max(0, Math.sin(dance)) * 0.12,
+          follower.z,
+        );
+        // GLB crowd faces local +Z; keep them moving ahead of the rath.
+        procession.followers.rotation.y = Math.atan2(followerAhead.x - follower.x, followerAhead.z - follower.z)
+          - THREE.MathUtils.degToRad(60)
+          + Math.sin(dance * 0.6) * 0.08;
+        procession.followers.rotation.x = Math.sin(dance * 1.3) * 0.035;
+        procession.followers.rotation.z = Math.sin(dance * 1.8) * 0.06;
+      }
+    }
+  });
+}
+
+const avatar = glbs.find((o) => o.name === 'avatar');
+if (avatar) {
+  // The avatar may stream in after the walk has started - switch the camera
+  // to third person as soon as it arrives.
+  if (player) player.state.thirdPerson = true;
+  avatar.rotation.y = Math.PI;
+  const faceFill = new THREE.PointLight(0xffd6a0, 1.35, 4.8, 2);
+  faceFill.name = 'character-face-fill';
+  faceFill.position.set(0, 1.55, 0.62);
+  avatar.add(faceFill);
+  const footOff = avatar.userData.footOffset || 0;
+  let gaitT = 0;
+  animated.push((dt) => {
+    const p = player.state;
+    avatar.position.set(p.position.x, p.position.y - footOff, p.position.z);
+    avatar.rotation.y = p.heading + Math.PI;
+
+    const moving = p.speed > 0.35 && p.grounded;
+    if (moving) gaitT += dt * (4.5 + p.speed * 1.6);
+    const s = Math.min(1, p.speed / 4.2);
+
+    const bob = moving ? Math.abs(Math.sin(gaitT * 2)) * 0.04 * s : 0;
+    const roll = moving ? Math.sin(gaitT) * 0.045 * s : 0;
+    const lean = moving ? 0.05 * s : 0;
+
+    avatar.position.y += bob;
+    avatar.rotation.z = roll;
+    avatar.rotation.x = lean;
+  });
+}
+
+}
+
+// Progressive loading: the temple loads first so play can start sooner, then
+// the remaining models stream in behind the scenes (wired as they arrive).
+// Set to false to load every model up front again.
+const PROGRESSIVE_LOADING = true;
+
+// Models loaded after the first paint, in priority order. terrain-orbit and
+// kirtan-followers go together because the procession needs both.
+const DEFERRED_MODEL_GROUPS = [
+  ['avatar'],
+  ['narshima'],
+  ['standin-temple'],
+  ['terrain-figure'],
+  ['terrain-orbit', 'kirtan-followers'],
+];
+
+async function loadDeferredModels(scene, glbs) {
+  for (const names of DEFERRED_MODEL_GROUPS) {
+    try {
+      const loaded = await loadGlbModels({
+        scene,
+        groundHeightAt,
+        names,
+        onLog: () => {},
+        onProgress: () => {},
+      });
+      if (!loaded.length) continue;
+      glbs.push(...loaded);
+      wireGlbModels(scene, loaded);
+      console.info('[glb] streamed', names.join(', '));
+    } catch (err) {
+      console.warn('[glb] deferred load failed:', names.join(', '), err);
+    }
+  }
+}
+
 async function boot() {
-  // No popup while loading: the cover art stays visible with just a bar.
+  // No popup while loading: the cover art stays visible with just a bar,
+  // plus the maha-mantra the player can chant word by word.
   hud.showOverlay(false);
   hud.setButtonEnabled(false);
   setSplashProgress(0, null);
+  initMantra();
 
   const renderer = createRenderer();
   const scene = new THREE.Scene();
@@ -374,6 +831,7 @@ async function boot() {
     : await loadGlbModels({
         scene,
         groundHeightAt,
+        names: PROGRESSIVE_LOADING ? ['mayapur-temple'] : null,
         onLog: (msg) => glbNotes.push(msg),
         onProgress: ({ item, percent }) => {
           // Size and device-cache details stay silent; caching happens behind
@@ -385,245 +843,7 @@ async function boot() {
   else if (glbNotes.length) console.info('[glb]', glbNotes.join('; '));
   else console.info('[glb]', glbHelpText());
 
-  const krishna = glbs.find((o) => o.name === 'standin-temple');
-  if (krishna) {
-    const baseY = krishna.position.y;
-    let animT = Math.random() * 10;
-    animated.push((dt) => {
-      animT += dt;
-      krishna.rotation.y += dt * 0.9;
-      const hop = Math.max(0, Math.sin(animT * 2.4)) ** 2 * 0.45;
-      krishna.position.y = baseY + hop;
-    });
-  }
-
-  const terrainFigure = glbs.find((o) => o.name === 'terrain-figure');
-  if (terrainFigure) {
-    const templeBounds = ENTRANCE.temple;
-    const templeCenter = {
-      x: (templeBounds.minX + templeBounds.maxX) / 2,
-      z: (templeBounds.minZ + templeBounds.maxZ) / 2,
-    };
-    const size = new THREE.Box3().setFromObject(terrainFigure).getSize(new THREE.Vector3());
-    // The imported figure faces inward, so its local depth becomes its side-to-side footprint.
-    const priorHeightRatio = 7 / 5;
-    const sideDistance = ENTRANCE.stairs.halfW + (size.z * priorHeightRatio) / 2 + 1.2 + 5;
-    const requestedDanceZ = ENTRANCE.stairs.zTop + 4 - 5;
-    const danceZ = Math.max(requestedDanceZ, templeBounds.maxZ + (size.x * priorHeightRatio) / 2 + 0.6) + 4;
-    const leftFigure = terrainFigure.clone(true);
-    leftFigure.name = 'terrain-figure-west';
-    scene.add(leftFigure);
-    const dancers = [
-      { object: leftFigure, side: -1, phase: 0 },
-      { object: terrainFigure, side: 1, phase: 0 },
-    ];
-    // Extra copies of the swaying figure so pilgrims meet them in other places.
-    const extraSpots = [
-      { x: -388, z: -198, heading: Math.PI, phase: 1.2 },
-      { x: 140, z: -20, heading: Math.PI / 2, phase: 2.7 },
-      { x: -146, z: 26, heading: 0, phase: 4.3 },
-    ];
-    const extraDancers = extraSpots.map((spot, i) => {
-      const figure = terrainFigure.clone(true);
-      figure.name = `terrain-figure-${i}`;
-      scene.add(figure);
-      return { object: figure, ...spot };
-    });
-    attachDancerPlacards([...dancers, ...extraDancers]);
-    const footOffset = terrainFigure.userData.footOffset || 0;
-    let danceT = 0;
-    animated.push((dt) => {
-      danceT += dt;
-      for (const dancer of dancers) {
-        const rhythm = danceT * 1.65 + dancer.phase;
-        const baseX = templeCenter.x + dancer.side * sideDistance;
-        const x = baseX + Math.sin(rhythm * 0.58) * 0.32;
-        const z = danceZ + Math.cos(rhythm * 0.58) * 0.32;
-
-        dancer.object.position.set(
-          x,
-          groundHeightAt(x, z) + footOffset + Math.max(0, Math.sin(rhythm * 2.1)) * 0.14,
-          z,
-        );
-        const turn = (1 - Math.cos(rhythm * 0.9)) / 2;
-        const leftwardOffset = dancer.side > 0 ? THREE.MathUtils.degToRad(40) : 0;
-        dancer.object.rotation.y = -Math.PI / 2 + turn * (Math.PI / 2) - leftwardOffset;
-        dancer.object.rotation.x = Math.sin(rhythm * 1.3) * 0.035;
-        dancer.object.rotation.z = Math.sin(rhythm * 1.7) * 0.065;
-      }
-      for (const dancer of extraDancers) {
-        const rhythm = danceT * 1.65 + dancer.phase;
-        const x = dancer.x + Math.sin(rhythm * 0.58) * 0.3;
-        const z = dancer.z + Math.cos(rhythm * 0.58) * 0.3;
-
-        dancer.object.position.set(
-          x,
-          groundHeightAt(x, z) + footOffset + Math.max(0, Math.sin(rhythm * 2.1)) * 0.14,
-          z,
-        );
-        const turn = (1 - Math.cos(rhythm * 0.9)) / 2;
-        dancer.object.rotation.y = dancer.heading + turn * 0.6;
-        dancer.object.rotation.x = Math.sin(rhythm * 1.3) * 0.035;
-        dancer.object.rotation.z = Math.sin(rhythm * 1.7) * 0.065;
-      }
-    });
-  }
-
-  const terrainOrbit = glbs.find((o) => o.name === 'terrain-orbit');
-  const kirtanFollowers = glbs.find((o) => o.name === 'kirtan-followers');
-  if (terrainOrbit) {
-    const orbitFootOffset = terrainOrbit.userData.footOffset || 0;
-    // The GLB is high-poly; skip its dynamic shadow-map passes so it does not
-    // make walking controls stutter while it moves.
-    const skipDynamicShadows = (root) => {
-      root.traverse((part) => {
-        if (part.isMesh) {
-          part.castShadow = false;
-          part.receiveShadow = false;
-        }
-      });
-    };
-    skipDynamicShadows(terrainOrbit);
-    if (kirtanFollowers) skipDynamicShadows(kirtanFollowers);
-    const followerFootOffset = kirtanFollowers?.userData.footOffset || 0;
-
-    // A two-lane, left-side temple route with broad U-turns at both ends:
-    // from beside the temple down the slope, then smoothly back uphill.
-    const templePath = makeLoopPath(({ points, appendLine, appendArc }) => {
-      points.push({ x: -37, z: 106 });
-      appendLine(-37, 170);
-      appendArc(-61, 170, 0, Math.PI);
-      appendLine(-85, 106);
-      appendArc(-61, 106, Math.PI, Math.PI * 2);
-    });
-
-    // More roads where pilgrims meet the dancing devotees: the ghat
-    // riverbank, around the east village hamlet, and along a black asphalt
-    // street of the city (city.js roads sit at y = -3.60).
-    const ghatPath = makeLoopPath(({ points, appendLine, appendArc }) => {
-      points.push({ x: -460, z: -160 });
-      appendLine(-310, -160);
-      appendArc(-310, -174, Math.PI / 2, -Math.PI / 2, 14);
-      appendLine(-460, -188);
-      appendArc(-460, -174, -Math.PI / 2, -Math.PI * 1.5, 14);
-    });
-    const villagePath = makeCirclePath(128, -12, 46);
-    const blackRoadPath = makeRoadLanePath(245, -260, 260);
-
-    const processions = [
-      { rath: terrainOrbit, followers: kirtanFollowers, path: templePath, speed: 5, gap: 60, distance: 0 },
-    ];
-
-    // The rath stays only on its temple route. Elsewhere we copy just the
-    // dancing devotees, so pilgrims meet them moving along other roads.
-    const dancingCrowds = [
-      { name: 'ghat', path: ghatPath, speed: 4.2, offset: 0 },
-      { name: 'village', path: villagePath, speed: 4.6, offset: 60 },
-      { name: 'black-road-1', path: blackRoadPath, speed: 4.4, offset: 120, surfaceY: -3.6 },
-    ];
-
-    // Eight more dancing crowds far apart on the city's black asphalt streets.
-    const extraBlackRoadSegments = [
-      { z: -610, x1: -600, x2: -250 },
-      { z: -610, x1: 250, x2: 600 },
-      { z: -515, x1: -600, x2: -250 },
-      { z: -515, x1: 250, x2: 600 },
-      { z: 340, x1: -600, x2: -250 },
-      { z: 340, x1: 250, x2: 600 },
-      { z: 435, x1: -600, x2: -250 },
-      { z: 435, x1: 250, x2: 600 },
-    ];
-    extraBlackRoadSegments.forEach((segment, i) => {
-      dancingCrowds.push({
-        name: `black-road-${i + 2}`,
-        path: makeRoadLanePath(segment.z, segment.x1, segment.x2),
-        speed: 4 + (i % 3) * 0.3,
-        offset: (i * 95) % 480,
-        surfaceY: -3.6,
-      });
-    });
-
-    if (kirtanFollowers) {
-      for (const crowd of dancingCrowds) {
-        const followers = kirtanFollowers.clone(true);
-        followers.name = `kirtan-followers-${crowd.name}`;
-        scene.add(followers);
-        processions.push({
-          rath: null,
-          followers,
-          path: crowd.path,
-          speed: crowd.speed,
-          gap: 0,
-          distance: crowd.offset,
-          surfaceY: crowd.surfaceY,
-        });
-      }
-    }
-
-    animated.push((dt) => {
-      for (const procession of processions) {
-        procession.distance = (procession.distance + dt * procession.speed) % procession.path.length;
-        const { x, z } = procession.path.pointAt(procession.distance);
-        const next = procession.path.pointAt(procession.distance + 1);
-
-        if (procession.rath) {
-          procession.rath.position.set(x, groundHeightAt(x, z) + orbitFootOffset + 2, z);
-          // This rath's forward axis is local +X, not Three.js's usual +Z.
-          procession.rath.rotation.y = Math.atan2(next.x - x, next.z - z) - Math.PI / 2;
-        }
-
-        if (procession.followers) {
-          const followerDistance = procession.distance + procession.gap;
-          const follower = procession.path.pointAt(followerDistance);
-          const followerAhead = procession.path.pointAt(followerDistance + 1);
-          const dance = procession.distance * 0.9;
-          const surface = procession.surfaceY != null
-            ? procession.surfaceY
-            : groundHeightAt(follower.x, follower.z);
-          procession.followers.position.set(
-            follower.x,
-            surface + followerFootOffset + Math.max(0, Math.sin(dance)) * 0.12,
-            follower.z,
-          );
-          // GLB crowd faces local +Z; keep them moving ahead of the rath.
-          procession.followers.rotation.y = Math.atan2(followerAhead.x - follower.x, followerAhead.z - follower.z)
-            - THREE.MathUtils.degToRad(60)
-            + Math.sin(dance * 0.6) * 0.08;
-          procession.followers.rotation.x = Math.sin(dance * 1.3) * 0.035;
-          procession.followers.rotation.z = Math.sin(dance * 1.8) * 0.06;
-        }
-      }
-    });
-  }
-
-  const avatar = glbs.find((o) => o.name === 'avatar');
-  if (avatar) {
-    avatar.rotation.y = Math.PI;
-    const faceFill = new THREE.PointLight(0xffd6a0, 1.35, 4.8, 2);
-    faceFill.name = 'character-face-fill';
-    faceFill.position.set(0, 1.55, 0.62);
-    avatar.add(faceFill);
-    const footOff = avatar.userData.footOffset || 0;
-    let gaitT = 0;
-    animated.push((dt) => {
-      const p = player.state;
-      avatar.position.set(p.position.x, p.position.y - footOff, p.position.z);
-      avatar.rotation.y = p.heading + Math.PI;
-
-      const moving = p.speed > 0.35 && p.grounded;
-      if (moving) gaitT += dt * (4.5 + p.speed * 1.6);
-      const s = Math.min(1, p.speed / 4.2);
-
-      const bob = moving ? Math.abs(Math.sin(gaitT * 2)) * 0.04 * s : 0;
-      const roll = moving ? Math.sin(gaitT) * 0.045 * s : 0;
-      const lean = moving ? 0.05 * s : 0;
-
-      avatar.position.y += bob;
-      avatar.rotation.z = roll;
-      avatar.rotation.x = lean;
-    });
-  }
-
+  wireGlbModels(scene, glbs);
   const templeRoot = glbs.find((o) => o.name === 'mayapur-temple');
   const walkMeshes = prepareWalkableMeshes(templeRoot);
   console.info(`[walkable] ${walkMeshes.length} temple mesh(es) with BVH`);
@@ -657,6 +877,9 @@ async function boot() {
   drone = createDrone({ camera, domElement: canvas, groundHeight, touchControls });
   boat = createBoat({ camera, touchControls });
   scene.add(boat.group);
+
+  arati = createArati({ scene, hud, music: youtubeMusic });
+  blessing = createBlessing({ scene, camera });
 
   const top = findRidgeTop();
 
@@ -694,6 +917,46 @@ async function boot() {
 
   // Dress the cut entrance passage so the broken edges look intentional.
   buildEntrancePortalLining(scene);
+  // Pancha-tattva altar pictures on both hall side walls.
+  buildSideAltar(scene, {
+    url: '/images/temple-side-altar.webp',
+    x: 6.85,
+    facing: Math.PI / 2,
+    z: 56,
+    width: 7.5,
+    height: 4.99,
+    ledgeLength: 8.2,
+  });
+  // Portrait covering the concrete block ("tomb") wall by the entrance,
+  // visible from the stairs. The block face is ~13.5 x 19.9 m.
+  buildSideAltar(scene, {
+    url: '/images/front-wall-picture.webp',
+    x: 2.75,
+    facing: 0,
+    z: 77.05,
+    width: 6.25,
+    height: 12.4,
+    bottomY: 35.8,
+  });
+  // Matching portrait on the right side of the staircase, same size.
+  buildSideAltar(scene, {
+    url: '/images/front-wall-picture-right.webp',
+    x: 32.65,
+    facing: 0,
+    z: 77.05,
+    width: 6.25,
+    height: 12.4,
+    bottomY: 35.8,
+  });
+  buildSideAltar(scene, {
+    url: '/images/temple-side-altar-right.webp',
+    x: 28.55,
+    facing: -Math.PI / 2,
+    z: 56,
+    width: 11.8,
+    height: 4.99,
+    ledgeLength: 12.5,
+  });
 
   game = createGame({
     scene,
@@ -704,6 +967,9 @@ async function boot() {
     villagePoints: village.userData.positions || [],
     farmPoints: farms.userData.counts ? farms.userData.counts.positions || [] : [],
     temple: templeBounds,
+    onBlessing: () => {
+      if (blessing) blessing.start();
+    },
   });
   window.__hill.game = game;
 
@@ -739,6 +1005,11 @@ async function boot() {
   });
   // Size correctly right away, including the forced-landscape case.
   window.dispatchEvent(new Event('resize'));
+
+  // Stream the remaining models in the background (menu/play is already up).
+  if (!liteMode && PROGRESSIVE_LOADING) {
+    loadDeferredModels(scene, glbs);
+  }
 
   requestAnimationFrame(frame);
 }
@@ -797,6 +1068,7 @@ function applyShotParams() {
 
 function startPlay(kind, { resume = false } = {}) {
   mode = kind;
+  resumeAudio();
   env.activateWeather();
   hud.showOverlay(false);
   hud.showHud(true);
@@ -926,8 +1198,12 @@ function returnToEntrance() {
   // A deliberate exit to the entrance wipes the gift hunt; pausing and
   // resuming (or switching tabs) keeps all progress.
   if (game) game.reset();
-  // Music pauses on exit and restarts with a fresh track on the next entry.
+  if (arati) arati.stop();
+  if (blessing) blessing.stop();
+  // Leaving the game silences everything: kirtan pauses and the WebAudio
+  // context is suspended so the rain/thunder ambience stops too.
   youtubeMusic.pause();
+  suspendAudio();
   musicNeedsNewTrack = true;
   // On phones, exiting leaves the immersive landscape game mode.
   exitImmersiveMode();
@@ -990,6 +1266,8 @@ window.addEventListener('keydown', (e) => {
     exitBoat();
   } else if (mode === 'drone' && boatNear) {
     enterBoat();
+  } else if (mode === 'walk' && arati && arati.isNear()) {
+    arati.start();
   }
 });
 
@@ -1140,7 +1418,9 @@ hud.onStart(() => {
       youtubeMusic.requestNewTrack();
     }
     youtubeMusic.play();
-    startPlay(mode, { resume: phase === 'paused' });
+    // Enter Temple always starts the walk from the menu; resuming a pause
+    // keeps whatever mode was being played.
+    startPlay(phase === 'paused' ? mode : 'walk', { resume: phase === 'paused' });
   }
 });
 
@@ -1156,6 +1436,10 @@ hud.onDrone(() => {
     youtubeMusic.play();
     startPlay('drone');
   }
+});
+
+hud.onArati(() => {
+  if (arati) arati.start();
 });
 
 hud.onBoatRide(() => {
@@ -1197,8 +1481,8 @@ function showGameTutorial() {
 
   hud.showTutorial({
     title: '🎁 Gift Hunt',
-    body: `<p>Your first gift floats <b>above the temple roof</b>. Fly up to it, open it and answer the spiritual question to receive it.</p>
-      <p class="note">After that, search Mayapur on your own — 11 gifts are hidden across the dham.</p>`,
+    body: `<p>Your first gift floats <b>above the temple roof</b> — fly up, open it and answer the question.</p>
+      <p class="note">Then search Mayapur on your own for the rest.</p>`,
     buttonText: 'Got it',
     onClose: () => {
       tutorialOpen = false;
@@ -1253,6 +1537,13 @@ function stepSimulation(dt) {
         }
       }
     }
+  }
+
+  if (arati) {
+    arati.update(dt, { phase, mode, playerPos: player.state.position });
+  }
+  if (blessing) {
+    blessing.update(dt);
   }
 
   if (phase === 'menu') player.state.camYaw += dt * 0.03;

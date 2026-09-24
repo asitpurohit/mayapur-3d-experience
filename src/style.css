@@ -40,6 +40,118 @@ body {
   object-fit: cover;
 }
 
+/* Maha-mantra chant over the cover art while the game loads. */
+#splash-mantra {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, 92%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px;
+  border-radius: 18px;
+  background: rgba(8, 14, 22, 0.35);
+  border: 1px solid rgba(255, 215, 0, 0.28);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  pointer-events: auto;
+}
+
+#mantra-words {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.mantra-line {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.mantra-word {
+  padding: 4px 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: none;
+  font: inherit;
+  font-size: clamp(15px, 2.2vw, 22px);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(255, 240, 200, 0.45);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255, 215, 0, 0.3);
+  transition: color 180ms ease, border-color 180ms ease;
+}
+
+.mantra-word.next {
+  border-color: rgba(255, 215, 0, 0.6);
+  color: #ffe9a8;
+  animation: promptPulse 1.6s ease-in-out infinite;
+}
+
+.mantra-word.revealed {
+  background: linear-gradient(180deg, #fff6cf, #ffd166 55%, #d9961c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  border-color: transparent;
+  filter: drop-shadow(0 0 10px rgba(255, 200, 70, 0.45));
+  animation: mantraIn 360ms ease;
+}
+
+.mantra-word.wrong {
+  border-color: rgba(255, 120, 90, 0.75);
+  animation: mantraShake 320ms ease;
+}
+
+@keyframes mantraIn {
+  from { opacity: 0; transform: scale(0.65) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes mantraShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+#mantra-hint {
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 240, 200, 0.75);
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.6);
+}
+
+#mantra-hint.flash {
+  color: #ffb08a;
+}
+
+#mantra-done {
+  font-size: clamp(16px, 2.4vw, 24px);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: linear-gradient(180deg, #fff6cf, #ffd166 55%, #d9961c);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 14px rgba(255, 200, 70, 0.55));
+  animation: mantraIn 420ms ease;
+}
+
+#mantra-done.hidden {
+  display: none;
+}
+
 /* Loading bar sits over the cover art - no popup card during loading. */
 #splash-progress {
   position: absolute;
@@ -203,12 +315,55 @@ body {
   }
 }
 
+@media (hover: hover) and (pointer: fine) {
+  #arati-btn:hover {
+    background: rgba(48, 38, 12, 0.95);
+    transform: scale(1.03);
+  }
+}
+
 #boat-ride-btn .key {
   display: inline-block;
   margin-left: 6px;
   padding: 1px 6px;
   border-radius: 4px;
   border: 1px solid rgba(191, 232, 255, 0.5);
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+#arati-prompt {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  z-index: 36;
+}
+
+#arati-btn {
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 215, 0, 0.55);
+  background: rgba(30, 24, 8, 0.85);
+  color: #ffe9a8;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 0 18px rgba(255, 200, 70, 0.25);
+  transition: transform 160ms ease, background 160ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255, 215, 0, 0.3);
+}
+
+#arati-btn .key {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 233, 168, 0.5);
   font-size: 11px;
   opacity: 0.85;
 }
@@ -250,6 +405,7 @@ body {
 #tutorial-modal.hidden,
 #gift-prompt.hidden,
 #boat-prompt.hidden,
+#arati-prompt.hidden,
 #gift-hint.hidden,
 #gift-counter.hidden {
   display: none;
@@ -354,6 +510,50 @@ body {
   margin: 0 0 10px;
   font-size: 20px;
   letter-spacing: 0.02em;
+}
+
+.blessed-title {
+  margin: 6px 0 12px !important;
+  font-size: 44px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.16em !important;
+  background: linear-gradient(180deg, #fff6cf 0%, #ffd166 45%, #d9961c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 16px rgba(255, 200, 70, 0.55));
+  animation: blessedGlow 2.2s ease-in-out infinite;
+}
+
+@keyframes blessedGlow {
+  0%, 100% { filter: drop-shadow(0 0 12px rgba(255, 200, 70, 0.45)); }
+  50% { filter: drop-shadow(0 0 26px rgba(255, 215, 90, 0.8)); }
+}
+
+/* Compact tutorial popup */
+.gift-card.compact {
+  width: min(330px, 92%);
+  padding: 14px 16px 12px;
+}
+
+.gift-card.compact .gift-icon {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+
+.gift-card.compact h2 {
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+
+.gift-card.compact #tutorial-body {
+  font-size: 12.5px;
+  margin-bottom: 10px;
+}
+
+.gift-card.compact #tutorial-btn {
+  padding: 8px 18px;
+  font-size: 12px;
 }
 
 .gift-card.blessing p {
@@ -736,6 +936,14 @@ body {
     font-size: 11px;
     padding: 5px 8px;
   }
+  #splash-mantra {
+    width: 94%;
+    gap: 9px;
+    padding: 14px 12px;
+  }
+  .mantra-word {
+    padding: 4px 7px;
+  }
   #gift-counter {
     left: 64px;
     top: 46px;
@@ -754,15 +962,20 @@ body {
   /* Touch screens have no F key: the interaction buttons become large,
      tappable action buttons. */
   #gift-open-btn,
-  #boat-ride-btn {
+  #boat-ride-btn,
+  #arati-btn {
     padding: 14px 24px;
     font-size: 16px;
     min-height: 54px;
     animation: promptPulse 1.6s ease-in-out infinite;
   }
   #gift-open-btn .key,
-  #boat-ride-btn .key {
+  #boat-ride-btn .key,
+  #arati-btn .key {
     display: none;
+  }
+  #arati-prompt {
+    bottom: 172px;
   }
   /* Bigger tap targets inside the question card. */
   .gift-option {
