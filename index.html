@@ -57,7 +57,7 @@
     <div id="hud" class="hidden">
       <div id="stats" class="panel">-- fps · alt -- m</div>
       <div id="visitor-counter" class="panel">🛕 <span id="visitor-count">1,001</span> Pilgrims</div>
-      <div id="gift-counter" class="panel hidden">🎁 0/11</div>
+      <div id="gift-counter" class="panel hidden">🎁 Lvl 1 · 0/11</div>
       <div id="gift-hint" class="hidden"></div>
       <div id="gift-prompt" class="hidden">
         <button id="gift-open-btn" type="button">🎁 Open gift <span class="key">F</span></button>
@@ -81,9 +81,12 @@
       <div id="blessing-modal" class="hidden">
         <div class="gift-card blessing">
           <div class="gift-icon">🙏</div>
-          <h2 class="blessed-title">BLESSED</h2>
-          <p>You found all 11 gifts hidden across Mayapur Dham. May Lord Narsimhadeva and Sri Chaitanya Mahaprabhu bless your journey.</p>
-          <button id="blessing-close" type="button">Continue exploring</button>
+          <h2 id="blessing-title" class="blessed-title">LEVEL 1 COMPLETE · BLESSED</h2>
+          <p id="blessing-text">You found all 11 gifts hidden across Mayapur Dham. May Lord Narsimhadeva and Sri Chaitanya Mahaprabhu bless your journey.</p>
+          <div class="blessing-actions">
+            <button id="blessing-next-level" type="button" class="btn-next-level hidden">Begin Level 2 ➔</button>
+            <button id="blessing-close" type="button">Continue exploring</button>
+          </div>
         </div>
       </div>
       <div id="tutorial-modal" class="hidden">
@@ -110,8 +113,8 @@
         <div class="body">
           <p>Take an aerial tour of Sri Mayapur Dham, fly across the grand temple, and cruise on the sacred Ganga.</p>
           <div class="gift-hunt-banner">
-            <div class="gift-hunt-title">🎁 Find All 11 Hidden Spiritual Gifts!</div>
-            <div class="gift-hunt-desc">Fly close to gifts, open them, and answer spiritual questions to receive divine blessings.</div>
+            <div class="gift-hunt-title">🎁 5 Levels · 55 Hidden Spiritual Gifts!</div>
+            <div class="gift-hunt-desc">Fly across Mayapur, discover gifts on high spires, river boats, moving kirtan dancers, and Srila Prabhupada!</div>
           </div>
         </div>
         <div class="mode-row">

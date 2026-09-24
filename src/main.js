@@ -52,8 +52,8 @@ const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pau
 function menuBody() {
   return `<p>Take an aerial tour of Sri Mayapur Dham, fly across the grand temple, and cruise on the sacred Ganga.</p>
     <div class="gift-hunt-banner">
-      <div class="gift-hunt-title">🎁 Find All 11 Hidden Spiritual Gifts!</div>
-      <div class="gift-hunt-desc">Fly close to gifts, open them, and answer spiritual questions to receive divine blessings.</div>
+      <div class="gift-hunt-title">🎁 5 Levels · 55 Hidden Spiritual Gifts!</div>
+      <div class="gift-hunt-desc">Fly across Mayapur, discover gifts on high spires, river boats, moving kirtan dancers, and Srila Prabhupada!</div>
     </div>`;
 }
 

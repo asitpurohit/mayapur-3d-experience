@@ -22,6 +22,9 @@ export function createHud() {
   const giftOptions = document.getElementById('gift-options');
   const giftFeedback = document.getElementById('gift-feedback');
   const blessingModal = document.getElementById('blessing-modal');
+  const blessingTitle = document.getElementById('blessing-title');
+  const blessingText = document.getElementById('blessing-text');
+  const blessingNextLevel = document.getElementById('blessing-next-level');
   const blessingClose = document.getElementById('blessing-close');
   const tutorialModal = document.getElementById('tutorial-modal');
   const tutorialTitle = document.getElementById('tutorial-title');
@@ -36,9 +39,11 @@ export function createHud() {
   let fpsFrames = 0;
   let fpsValue = 0;
   let giftOpenHandler = null;
+  let giftCounterClickHandler = null;
   let boatRideHandler = null;
   let aratiHandler = null;
   let blessingCloseHandler = null;
+  let nextLevelHandler = null;
   let tutorialCloseHandler = null;
   let hintTimer = null;
 
@@ -113,14 +118,25 @@ export function createHud() {
     status.textContent = text;
   }
 
-  function setGiftCounter(found, total, visible) {
+  function setGiftCounter(found, total, visible, level = 1, suffix = '') {
     if (!giftCounter) return;
-    const label = `${found}/${total}`;
+    const label = `Lvl ${level} · ${found}/${total}${suffix}`;
     if (giftCounter.dataset.label !== label) {
       giftCounter.dataset.label = label;
       giftCounter.textContent = `🎁 ${label}`;
+      giftCounter.style.cursor = suffix ? 'pointer' : 'default';
     }
     giftCounter.classList.toggle('hidden', !visible);
+  }
+
+  function onGiftCounterClick(fn) {
+    giftCounterClickHandler = fn;
+  }
+
+  if (giftCounter) {
+    bindTouchClick(giftCounter, () => {
+      if (giftCounterClickHandler) giftCounterClickHandler();
+    });
   }
 
   function onGiftOpen(fn) {
@@ -237,9 +253,26 @@ export function createHud() {
     giftModal.classList.remove('hidden');
   }
 
-  function showBlessing({ onClose } = {}) {
+  function showBlessing({ title, text, nextButtonText, onNextLevel, onClose } = {}) {
     if (!blessingModal) return;
     blessingCloseHandler = onClose || null;
+    nextLevelHandler = onNextLevel || null;
+
+    if (blessingTitle && title) {
+      blessingTitle.textContent = title;
+    }
+    if (blessingText && text) {
+      blessingText.textContent = text;
+    }
+    if (blessingNextLevel) {
+      if (onNextLevel) {
+        blessingNextLevel.textContent = nextButtonText || 'Next Level ➔';
+        blessingNextLevel.classList.remove('hidden');
+      } else {
+        blessingNextLevel.classList.add('hidden');
+      }
+    }
+
     blessingModal.classList.remove('hidden');
   }
 
@@ -259,6 +292,17 @@ export function createHud() {
       if (tutorialCloseHandler) {
         const fn = tutorialCloseHandler;
         tutorialCloseHandler = null;
+        fn();
+      }
+    });
+  }
+
+  if (blessingNextLevel) {
+    bindTouchClick(blessingNextLevel, () => {
+      blessingModal.classList.add('hidden');
+      if (nextLevelHandler) {
+        const fn = nextLevelHandler;
+        nextLevelHandler = null;
         fn();
       }
     });
@@ -284,6 +328,7 @@ export function createHud() {
     update,
     setStatus,
     setGiftCounter,
+    onGiftCounterClick,
     onGiftOpen,
     showGiftPrompt,
     onBoatRide,
