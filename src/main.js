@@ -903,8 +903,18 @@ function exitBoat() {
   drone.state.velocity.set(0, 0, 0);
   drone.state.enabled = true;
   hud.setStatus(DRONE_STATUS);
-  if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
-    hud.setGameHint('Click anywhere to capture the cursor and keep flying', 4500);
+
+  // Desktop: hand the mouse straight back to the camera. The F key press (or
+  // button tap) is a user gesture, so the pointer lock request is allowed.
+  const desktopPointer = window.matchMedia
+    && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (desktopPointer && typeof drone.capturePointer === 'function') {
+    const attempt = drone.capturePointer();
+    if (attempt && typeof attempt.catch === 'function') {
+      attempt.catch(() => {
+        hud.setGameHint('Click anywhere to capture the cursor and keep flying', 4500);
+      });
+    }
   }
 }
 
