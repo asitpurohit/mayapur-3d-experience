@@ -30,7 +30,7 @@ const hud = createHud();
 const youtubeMusic = createYouTubeMusic();
 
 let phase = 'loading';
-let mode = 'walk';
+let mode = 'drone';
 let world = null;
 let player = null;
 let drone = null;
@@ -50,8 +50,9 @@ const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mo
 const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pause';
 
 function menuBody() {
-  return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
-    <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>`;
+  return `<p>Take an aerial tour of Sri Mayapur Dham, fly across the grand temple, cruise on the sacred Ganga, and search for the 11 hidden spiritual gifts!</p>
+    <p class="note"><b>🕊️ Darshan Parikrama:</b> Watch Srila Prabhupada walk peacefully up the 40 grand steps for darshan of Lord Narsimhadev.</p>
+    <p class="note"><b>🎁 Gift Hunt:</b> Fly close to gifts, open them, and answer spiritual questions to receive divine blessings.</p>`;
 }
 
 // The GLB's front entrance passage was cut open for the walkable route. Line
@@ -654,13 +655,6 @@ if (terrainOrbit) {
 
 const avatar = glbs.find((o) => o.name === 'avatar');
 if (avatar) {
-  // The avatar may stream in after the walk has started - switch the camera
-  // to third person as soon as it arrives.
-  if (player) player.state.thirdPerson = true;
-  avatar.rotation.y = Math.PI;
-  // Face fill light makes the avatar's face warmer in shade, but forces PBR
-  // recalc on every mesh within 4.8m each frame. Skip on mobile where outdoor
-  // sunlight already illuminates the face clearly.
   if (!isMobile) {
     const faceFill = new THREE.PointLight(0xffd6a0, 1.35, 4.8, 2);
     faceFill.name = 'character-face-fill';
@@ -668,23 +662,114 @@ if (avatar) {
     avatar.add(faceFill);
   }
   const footOff = avatar.userData.footOffset || 0;
+
+  // Auto-walk devotional parikrama:
+  // Srila Prabhupada walks continuously from ground level up the 40 steps,
+  // into the sanctum hall to Lord Narsimhadev's altar, bows in reverence,
+  // and walks back down to the ground.
+  const walkX = ENTRANCE.doorX; // 17.7
+  const zGround = 142.0; // Ground in front of the grand stairs
+  const zAltar = 58.5; // Right before Lord Narsimhadeva and Guru on the altar
+  const walkSpeed = 1.9; // Peaceful devotional walking speed
+
+  let currentZ = zGround;
+  let walkState = 'walk-up'; // 'walk-up' | 'at-altar' | 'turn-down' | 'walk-down' | 'at-ground' | 'turn-up'
+  let stateTimer = 0;
   let gaitT = 0;
+  let currentYaw = Math.PI; // Face toward temple (-Z) initially
+
   animated.push((dt) => {
-    const p = player.state;
-    avatar.position.set(p.position.x, p.position.y - footOff, p.position.z);
-    avatar.rotation.y = p.heading + Math.PI;
+    let bob = 0;
+    let roll = 0;
+    let pitch = 0;
 
-    const moving = p.speed > 0.35 && p.grounded;
-    if (moving) gaitT += dt * (4.5 + p.speed * 1.6);
-    const s = Math.min(1, p.speed / 4.2);
+    switch (walkState) {
+      case 'walk-up': {
+        currentZ -= dt * walkSpeed;
+        currentYaw = Math.PI; // Facing temple (-Z)
+        gaitT += dt * 4.2;
+        bob = Math.abs(Math.sin(gaitT * 2)) * 0.038;
+        roll = Math.sin(gaitT) * 0.038;
+        pitch = 0.03; // Gentle forward lean climbing steps
+        if (currentZ <= zAltar) {
+          currentZ = zAltar;
+          walkState = 'at-altar';
+          stateTimer = 0;
+        }
+        break;
+      }
+      case 'at-altar': {
+        // Paused in prayer / darshan before Lord Narsimhadeva
+        stateTimer += dt;
+        currentYaw = Math.PI;
+        bob = Math.sin(stateTimer * 1.5) * 0.01;
+        // Devotional bow toward the altar deities:
+        pitch = Math.sin(stateTimer * 1.0) * 0.06 + 0.06;
+        roll = 0;
+        if (stateTimer >= 5.0) {
+          walkState = 'turn-down';
+          stateTimer = 0;
+        }
+        break;
+      }
+      case 'turn-down': {
+        // Smoothly rotate 180 degrees from Math.PI to 0
+        stateTimer += dt;
+        const t = Math.min(1, stateTimer / 1.5);
+        currentYaw = Math.PI - t * Math.PI;
+        bob = Math.abs(Math.sin(stateTimer * 6)) * 0.015;
+        if (stateTimer >= 1.5) {
+          currentYaw = 0;
+          walkState = 'walk-down';
+          stateTimer = 0;
+        }
+        break;
+      }
+      case 'walk-down': {
+        currentZ += dt * walkSpeed;
+        currentYaw = 0; // Facing outward toward ground (+Z)
+        gaitT += dt * 4.2;
+        bob = Math.abs(Math.sin(gaitT * 2)) * 0.038;
+        roll = Math.sin(gaitT) * 0.038;
+        pitch = -0.015;
+        if (currentZ >= zGround) {
+          currentZ = zGround;
+          walkState = 'at-ground';
+          stateTimer = 0;
+        }
+        break;
+      }
+      case 'at-ground': {
+        // Paused on ground level
+        stateTimer += dt;
+        currentYaw = 0;
+        bob = Math.sin(stateTimer * 1.2) * 0.008;
+        pitch = 0;
+        roll = 0;
+        if (stateTimer >= 3.0) {
+          walkState = 'turn-up';
+          stateTimer = 0;
+        }
+        break;
+      }
+      case 'turn-up': {
+        // Smoothly rotate 180 degrees from 0 to Math.PI
+        stateTimer += dt;
+        const t = Math.min(1, stateTimer / 1.5);
+        currentYaw = t * Math.PI;
+        bob = Math.abs(Math.sin(stateTimer * 6)) * 0.015;
+        if (stateTimer >= 1.5) {
+          currentYaw = Math.PI;
+          walkState = 'walk-up';
+          stateTimer = 0;
+        }
+        break;
+      }
+    }
 
-    const bob = moving ? Math.abs(Math.sin(gaitT * 2)) * 0.04 * s : 0;
-    const roll = moving ? Math.sin(gaitT) * 0.045 * s : 0;
-    const lean = moving ? 0.05 * s : 0;
-
-    avatar.position.y += bob;
-    avatar.rotation.z = roll;
-    avatar.rotation.x = lean;
+    const groundY = entranceHeightAt(walkX, currentZ);
+    avatar.position.set(walkX, groundY - footOff + bob, currentZ);
+    avatar.rotation.set(pitch, currentYaw, roll);
   });
 }
 
@@ -998,8 +1083,8 @@ async function boot() {
     true,
     'ISKCON Mayapur',
     menuBody(),
-    'Enter Temple',
-    { modeChoice: true },
+    'PLAY GAME',
+    { modeChoice: false },
   );
   phase = 'menu';
 
@@ -1193,20 +1278,17 @@ function pause() {
   boat.pause();
   if (touchControls) touchControls.setVisible(false);
   const body =
-    mode === 'drone'
-      ? '<p>The drone is hovering. Tap Resume to keep flying, or Exit to Entrance to change mode.</p>'
-      : mode === 'boat'
-        ? '<p>The boat waits on the Ganga. Tap Resume to keep riding, or Exit to Entrance to change mode.</p>'
-        : '<p>The temple waits. Tap Resume to keep walking, or Exit to Entrance to change mode.</p>';
-  hud.showOverlay(true, 'Paused', body, 'Resume', { modeChoice: true, droneButtonText: 'Exit to Entrance' });
+    mode === 'boat'
+      ? '<p>The boat waits on the Ganga. Tap Resume to keep riding, or Exit to Menu to return.</p>'
+      : '<p>The drone is hovering. Tap Resume to keep flying, or Exit to Menu to return.</p>';
+  hud.showOverlay(true, 'Paused', body, 'Resume', { modeChoice: true, droneButtonText: 'Exit to Menu' });
 }
 
 function returnToEntrance() {
   phase = 'menu';
   needsRender = true;
   player.state.enabled = false;
-  // A deliberate exit resets everything: the walk starts fresh from the
-  // entrance stairs next time, the drone replays its intro and the boat
+  // A deliberate exit resets everything: the drone replays its intro and the boat
   // returns to the ghat.
   player.reset();
   drone.deactivate();
@@ -1233,8 +1315,8 @@ function returnToEntrance() {
     true,
     'ISKCON Mayapur',
     menuBody(),
-    'Enter Temple',
-    { modeChoice: true, droneButtonText: 'PLAY GAME' },
+    'PLAY GAME',
+    { modeChoice: false },
   );
 }
 
@@ -1438,9 +1520,8 @@ hud.onStart(() => {
       youtubeMusic.requestNewTrack();
     }
     youtubeMusic.play();
-    // Enter Temple always starts the walk from the menu; resuming a pause
-    // keeps whatever mode was being played.
-    startPlay(phase === 'paused' ? mode : 'walk', { resume: phase === 'paused' });
+    // Start or resume drone game mode
+    startPlay(phase === 'paused' ? mode : 'drone', { resume: phase === 'paused' });
   }
 });
 
