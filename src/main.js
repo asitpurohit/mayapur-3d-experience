@@ -162,9 +162,9 @@ function setSplashProgress(percent, item, { fromCache = false } = {}) {
   }
   if (sublabel) {
     if (fromCache) {
-      sublabel.textContent = '⚡ Loading from local storage… almost ready!';
+      sublabel.textContent = '⚡ Loading from local cache… almost ready!';
     } else {
-      sublabel.textContent = '⏳ Please wait ~1 min (1st time takes time · saved for next visit)';
+      sublabel.textContent = '⏳ 1st time takes ~1 min · Saved for next visit';
     }
   }
 }
