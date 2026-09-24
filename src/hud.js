@@ -166,6 +166,13 @@ export function createHud() {
     giftOptions.innerHTML = '';
     if (giftFeedback) giftFeedback.textContent = '';
 
+    // Drop focus/hover left over from the button that opened the modal, and
+    // ignore ghost taps from that same gesture (mobile click-through).
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+      document.activeElement.blur();
+    }
+    const openedAt = performance.now();
+
     options.forEach((label, index) => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -173,6 +180,7 @@ export function createHud() {
       button.textContent = label;
       bindTouchClick(button, () => {
         if (button.disabled) return;
+        if (performance.now() - openedAt < 450) return;
         if (onAnswer(index)) {
           closeQuestion();
         } else {

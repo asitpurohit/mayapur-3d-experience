@@ -196,9 +196,11 @@ body {
   -webkit-tap-highlight-color: rgba(120, 200, 255, 0.3);
 }
 
-#boat-ride-btn:hover {
-  background: rgba(12, 38, 54, 0.95);
-  transform: scale(1.03);
+@media (hover: hover) and (pointer: fine) {
+  #boat-ride-btn:hover {
+    background: rgba(12, 38, 54, 0.95);
+    transform: scale(1.03);
+  }
 }
 
 #boat-ride-btn .key {
@@ -211,9 +213,11 @@ body {
   opacity: 0.85;
 }
 
-#gift-open-btn:hover {
-  background: rgba(48, 38, 12, 0.95);
-  transform: translateX(0) scale(1.03);
+@media (hover: hover) and (pointer: fine) {
+  #gift-open-btn:hover {
+    background: rgba(48, 38, 12, 0.95);
+    transform: translateX(0) scale(1.03);
+  }
 }
 
 #gift-open-btn .key {
@@ -294,9 +298,11 @@ body {
   -webkit-tap-highlight-color: rgba(255, 215, 0, 0.3);
 }
 
-.gift-option:hover {
-  background: rgba(34, 52, 72, 0.95);
-  border-color: rgba(255, 215, 0, 0.5);
+@media (hover: hover) and (pointer: fine) {
+  .gift-option:hover {
+    background: rgba(34, 52, 72, 0.95);
+    border-color: rgba(255, 215, 0, 0.5);
+  }
 }
 
 .gift-option.wrong {
@@ -346,8 +352,10 @@ body {
   -webkit-tap-highlight-color: rgba(255, 215, 0, 0.3);
 }
 
-#blessing-close:hover {
-  background: rgba(60, 48, 14, 0.95);
+@media (hover: hover) and (pointer: fine) {
+  #blessing-close:hover {
+    background: rgba(60, 48, 14, 0.95);
+  }
 }
 
 .hud-top-right {
