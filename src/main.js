@@ -52,6 +52,19 @@ function hideSplash() {
   if (splash) splash.classList.add('hidden');
 }
 
+// Loading bar drawn over the cover art (no popup card while loading).
+function setSplashProgress(percent, item) {
+  const clamped = Math.max(0, Math.min(100, percent || 0));
+  const bar = document.getElementById('splash-bar');
+  const label = document.getElementById('splash-label');
+  if (bar) bar.style.width = `${clamped}%`;
+  if (label) {
+    label.textContent = item
+      ? `Loading ${item}… ${Math.round(clamped)}%`
+      : `Loading Mayapur… ${Math.round(clamped)}%`;
+  }
+}
+
 // Give every swaying devotee a small devotional placard on a 1 m stick to
 // Every swaying devotee carries a small devotional placard on a 0.5 m stick.
 // The figures are GLB models with their own scale (about 10x), so the placard
@@ -263,13 +276,10 @@ function createCamera() {
 }
 
 async function boot() {
-  hud.showOverlay(
-    true,
-    'ISKCON Mayapur',
-    '<p>Entering Mayapur Dham…</p><p class="note">🎁 Gift Hunt: in PLAY GAME, find 11 gifts hidden across Mayapur. Open each and answer a spiritual question to receive it.</p>',
-    'Please wait',
-  );
+  // No popup while loading: the cover art stays visible with just a bar.
+  hud.showOverlay(false);
   hud.setButtonEnabled(false);
+  setSplashProgress(0, null);
 
   const renderer = createRenderer();
   const scene = new THREE.Scene();
@@ -324,17 +334,8 @@ async function boot() {
         onLog: (msg) => glbNotes.push(msg),
         onProgress: ({ item, percent }) => {
           // Size and device-cache details stay silent; caching happens behind
-          // the scenes and the player only sees a simple progress bar.
-          hud.showOverlay(
-            true,
-            'ISKCON Mayapur',
-            `<p>Entering Mayapur Dham…</p>
-             <div class="progress-box">
-               <div class="progress-bar-bg"><div class="progress-bar-fill" style="width: ${percent}%"></div></div>
-               <div class="progress-sub"><span>Loading ${item}</span><span>${percent}%</span></div>
-             </div>`,
-            'Please wait',
-          );
+          // the scenes and only the splash loading bar is updated.
+          setSplashProgress(percent, item);
         },
       });
   if (liteMode) console.info('[glb] lite mode — model loading skipped');
@@ -660,6 +661,7 @@ async function boot() {
   window.__hill.game = game;
 
   hud.setButtonEnabled(true);
+  setSplashProgress(100, null);
   hideSplash();
   // The menu appears in forced landscape on phones (no rotate option).
   syncForcedLandscape();
