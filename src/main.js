@@ -561,10 +561,28 @@ if (terrainOrbit) {
     });
   });
 
+  // After cloning a model, force every texture to re-upload to the GPU.
+  // Clones share material/texture objects with the original. If the original
+  // was already rendered (textures marked clean), the GPU upload is skipped
+  // for the clone and it renders white. Bumping needsUpdate forces a re-upload.
+  function refreshTextures(root) {
+    root.traverse((obj) => {
+      if (!obj.isMesh || !obj.material) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) {
+        for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap']) {
+          if (mat[key]) mat[key].needsUpdate = true;
+        }
+      }
+    });
+  }
+
   if (kirtanFollowers) {
+    refreshTextures(kirtanFollowers); // refresh the original too
     for (const crowd of dancingCrowds) {
       const followers = kirtanFollowers.clone(true);
       followers.name = `kirtan-followers-${crowd.name}`;
+      refreshTextures(followers);
       scene.add(followers);
       processions.push({
         rath: null,
