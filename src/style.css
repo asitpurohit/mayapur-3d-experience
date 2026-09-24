@@ -149,6 +149,44 @@ body {
   }
 }
 
+/* Right Side Vertical Loading Badge */
+.splash-vertical-badge {
+  position: absolute;
+  top: 50%;
+  right: clamp(10px, 2.2vw, 24px);
+  transform: translateY(-50%);
+  z-index: 10;
+  pointer-events: none;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: clamp(11px, 1.35vw, 14px);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: #ffe68a;
+  background: linear-gradient(180deg, rgba(20, 26, 38, 0.92) 0%, rgba(10, 14, 20, 0.95) 100%);
+  border: 1.5px solid rgba(255, 215, 0, 0.7);
+  border-radius: 999px;
+  padding: clamp(16px, 3vh, 26px) clamp(8px, 1.1vw, 12px);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.35), 0 8px 25px rgba(0, 0, 0, 0.85);
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: verticalTagGlow 2.5s infinite ease-in-out;
+  white-space: nowrap;
+}
+
+@keyframes verticalTagGlow {
+  0%, 100% {
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.3), 0 8px 25px rgba(0, 0, 0, 0.85);
+    border-color: rgba(255, 215, 0, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(255, 215, 0, 0.65), 0 8px 30px rgba(0, 0, 0, 0.95);
+    border-color: rgba(255, 235, 120, 0.95);
+  }
+}
+
+
 /* Loading bar sits over the cover art & video */
 #splash-progress {
   position: absolute;

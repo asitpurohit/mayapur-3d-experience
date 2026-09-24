@@ -157,10 +157,12 @@ function startLoadingReel() {
   const waitTop = document.getElementById('splash-wait-top');
   if (!container || !iframe) return;
 
-  const videoId = 'FrpAulzGU0Q';
+  const videoId = 'uO6SoVzRQfQ';
   iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&playsinline=1&rel=0&modestbranding=1&enablejsapi=1`;
   container.classList.remove('hidden');
   if (waitTop) waitTop.classList.remove('hidden');
+  const verticalBadge = document.getElementById('splash-vertical-badge');
+  if (verticalBadge) verticalBadge.classList.remove('hidden');
 }
 
 function stopLoadingReel() {
@@ -179,6 +181,10 @@ function stopLoadingReel() {
   const waitTop = document.getElementById('splash-wait-top');
   if (waitTop) {
     waitTop.classList.add('hidden');
+  }
+  const verticalBadge = document.getElementById('splash-vertical-badge');
+  if (verticalBadge) {
+    verticalBadge.classList.add('hidden');
   }
 }
 
