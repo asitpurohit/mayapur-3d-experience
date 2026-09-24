@@ -634,6 +634,32 @@ body {
   color: #8fa2b5;
 }
 
+.gift-hunt-banner {
+  margin: 12px 0 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.16), rgba(240, 160, 32, 0.06));
+  border: 1.5px solid rgba(255, 215, 0, 0.5);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  text-align: left;
+}
+
+.gift-hunt-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #ffe082;
+  text-shadow: 0 1px 8px rgba(255, 215, 0, 0.45);
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.gift-hunt-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #dbe6f0;
+}
+
 .card .mode-row {
   display: grid;
   gap: 8px;
