@@ -49,8 +49,11 @@ const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mo
 const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pause';
 
 function menuBody() {
+  const installTip = isTouchDevice()
+    ? '<p class="note">📲 Add to Home Screen to play fullscreen — no browser bars, no system pop-ups.</p>'
+    : '';
   return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
-    <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>`;
+    <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>${installTip}`;
 }
 
 // The GLB's front entrance passage was cut open for the walkable route. Line
@@ -1193,6 +1196,13 @@ window.addEventListener('keydown', (e) => {
 });
 
 async function enterLandscapeFullscreen() {
+  // Phones stay in the browser viewport: entering fullscreen makes the system
+  // show its "swipe / drag from the top to exit" toast, which cannot be
+  // suppressed from the page. The CSS landscape lock covers phones instead.
+  if (isTouchDevice()) {
+    syncForcedLandscape();
+    return;
+  }
   const el = document.documentElement;
   const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
   if (fn && !document.fullscreenElement && !document.webkitFullscreenElement) {
@@ -1298,32 +1308,11 @@ document.addEventListener('fullscreenchange', updateFullscreenBtn);
 document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 updateFullscreenBtn();
 
-// Mobile: no rotate option - the experience is always landscape, in
-// fullscreen when the browser allows it. Fullscreen needs a user gesture, so
-// we keep retrying on proper activation events (click/touchend/pointerup)
-// until it succeeds. (iPhone Safari does not support element fullscreen at
-// all - there the CSS landscape lock is used.)
+// Mobile: no rotate option - the experience is always landscape via the CSS
+// forced-landscape lock. Phones never auto-enter fullscreen, so the browser's
+// "drag from the top to exit" system toast never appears.
 window.addEventListener('resize', syncForcedLandscape);
 window.addEventListener('orientationchange', syncForcedLandscape);
-if (isTouchDevice()) {
-  let fullscreenDone = false;
-  const activationEvents = ['click', 'touchend', 'pointerup'];
-  const stopRetrying = () => {
-    activationEvents.forEach((name) => window.removeEventListener(name, tryFullscreen, true));
-  };
-  const tryFullscreen = () => {
-    if (fullscreenDone) return;
-    enterLandscapeFullscreen().then(() => {
-      if (document.fullscreenElement || document.webkitFullscreenElement) {
-        fullscreenDone = true;
-        stopRetrying();
-      }
-    });
-  };
-  activationEvents.forEach((name) => window.addEventListener(name, tryFullscreen, true));
-  // Best effort at load; browsers will usually require the first tap.
-  enterLandscapeFullscreen();
-}
 
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {

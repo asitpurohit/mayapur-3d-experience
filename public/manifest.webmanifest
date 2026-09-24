@@ -1,0 +1,32 @@
+{
+  "name": "ISKCON Mayapur — 3D Darshan & Aerial Tour",
+  "short_name": "Mayapur 3D",
+  "description": "Walk Mayapur as Srila Prabhupada, offer arati to Lord Narsimhadev, ride the Ganga and hunt for gifts in a 3D Mayapur darshan.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#1b1208",
+  "theme_color": "#1b1208",
+  "icons": [
+    {
+      "src": "/images/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/images/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
