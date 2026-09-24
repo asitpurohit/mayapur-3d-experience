@@ -154,9 +154,7 @@ function setSplashProgress(percent, item) {
   const label = document.getElementById('splash-label');
   if (bar) bar.style.width = `${clamped}%`;
   if (label) {
-    label.textContent = item
-      ? `Loading ${item}… ${Math.round(clamped)}%`
-      : `Loading Mayapur… ${Math.round(clamped)}%`;
+    label.textContent = `Loading Mayapur… ${Math.round(clamped)}%`;
   }
 }
 
@@ -658,8 +656,6 @@ const PROGRESSIVE_LOADING = true;
 
 // Models loaded after the first paint, in priority order.
 const DEFERRED_MODEL_GROUPS = [
-  ['narshima', 'guru'],
-  ['avatar'],
   ['standin-temple'],
   ['terrain-figure'],
   ['terrain-orbit'],
@@ -785,7 +781,7 @@ async function boot() {
     : await loadGlbModels({
         scene,
         groundHeightAt,
-        names: PROGRESSIVE_LOADING ? ['mayapur-temple'] : null,
+        names: PROGRESSIVE_LOADING ? ['mayapur-temple', 'narshima', 'guru', 'avatar'] : null,
         onLog: (msg) => glbNotes.push(msg),
         onProgress: ({ item, percent }) => {
           // Size and device-cache details stay silent; caching happens behind
