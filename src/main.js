@@ -963,13 +963,12 @@ function syncForcedLandscape() {
   }
 }
 
-// Immersive mode: desktop may go fullscreen, but phones never request it (the
-// browser would show its "swipe from the top to exit fullscreen" toast). The
-// CSS landscape lock keeps phones in landscape instead.
+// Immersive mode: fullscreen + landscape lock. Phones also go fullscreen
+// (the browser's "swipe from the top" toast is system UI and cannot be
+// suppressed by the page), with the CSS landscape lock as a fallback for
+// devices that refuse fullscreen or orientation lock.
 async function enterImmersiveMode() {
-  if (!isTouchDevice()) {
-    await enterLandscapeFullscreen();
-  }
+  await enterLandscapeFullscreen();
   syncForcedLandscape();
 }
 
@@ -1031,12 +1030,32 @@ document.addEventListener('fullscreenchange', updateFullscreenBtn);
 document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 updateFullscreenBtn();
 
-// Mobile: no rotate option - the experience is always landscape. Fullscreen is
-// deliberately NOT requested on phones (it triggers the browser's "swipe from
-// the top to exit fullscreen" system toast); the CSS landscape lock is used
-// instead. Desktop keeps its fullscreen button.
+// Mobile: no rotate option - the experience is always landscape, in
+// fullscreen when the browser allows it. Fullscreen needs a user gesture, so
+// we keep retrying on proper activation events (click/touchend/pointerup)
+// until it succeeds. (iPhone Safari does not support element fullscreen at
+// all - there the CSS landscape lock is used.)
 window.addEventListener('resize', syncForcedLandscape);
 window.addEventListener('orientationchange', syncForcedLandscape);
+if (isTouchDevice()) {
+  let fullscreenDone = false;
+  const activationEvents = ['click', 'touchend', 'pointerup'];
+  const stopRetrying = () => {
+    activationEvents.forEach((name) => window.removeEventListener(name, tryFullscreen, true));
+  };
+  const tryFullscreen = () => {
+    if (fullscreenDone) return;
+    enterLandscapeFullscreen().then(() => {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        fullscreenDone = true;
+        stopRetrying();
+      }
+    });
+  };
+  activationEvents.forEach((name) => window.addEventListener(name, tryFullscreen, true));
+  // Best effort at load; browsers will usually require the first tap.
+  enterLandscapeFullscreen();
+}
 
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
