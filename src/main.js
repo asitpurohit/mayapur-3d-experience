@@ -43,8 +43,7 @@ const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pau
 
 function menuBody() {
   return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
-    <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>
-    <p class="note"><b>⛵ Boat ride:</b> fly the drone to the ghat to find a boat you can ride on the Ganga with W A S D — one gift can only be reached by boat.</p>`;
+    <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>`;
 }
 
 function hideSplash() {
