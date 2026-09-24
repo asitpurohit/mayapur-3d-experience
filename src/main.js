@@ -1540,7 +1540,11 @@ function stepSimulation(dt) {
   }
 
   if (arati) {
-    const aratiPos = mode === 'drone' && drone ? drone.state.position : player.state.position;
+    // No arati prompt while the cinematic drone intro is still flying.
+    const droneIntro = mode === 'drone' && drone && drone.state.intro;
+    const aratiPos = mode === 'drone'
+      ? (droneIntro ? null : drone.state.position)
+      : player.state.position;
     arati.update(dt, { phase, mode, playerPos: aratiPos });
   }
   if (blessing) {
