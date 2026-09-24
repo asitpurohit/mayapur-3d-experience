@@ -145,88 +145,20 @@ function buildSideAltar(scene, { url, x, facing, z, width, height, ledgeLength, 
   );
 }
 
-let loadingReelStarted = false;
-let reelMuted = true;
-let reelTimer = null;
-
-function startLoadingReel() {
-  if (loadingReelStarted) return;
-  loadingReelStarted = true;
-  const container = document.getElementById('loading-reel-container');
-  const iframe = document.getElementById('loading-reel-iframe');
-  const waitTop = document.getElementById('splash-wait-top');
-  if (!container || !iframe) return;
-
-  const videoId = 'uO6SoVzRQfQ';
-  iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&playsinline=1&rel=0&modestbranding=1&enablejsapi=1`;
-  container.classList.remove('hidden');
-  if (waitTop) waitTop.classList.remove('hidden');
-  const verticalBadge = document.getElementById('splash-vertical-badge');
-  if (verticalBadge) verticalBadge.classList.remove('hidden');
-}
-
-function stopLoadingReel() {
-  if (reelTimer) {
-    clearTimeout(reelTimer);
-    reelTimer = null;
-  }
-  const iframe = document.getElementById('loading-reel-iframe');
-  if (iframe) {
-    iframe.src = '';
-  }
-  const container = document.getElementById('loading-reel-container');
-  if (container) {
-    container.classList.add('hidden');
-  }
-  const waitTop = document.getElementById('splash-wait-top');
-  if (waitTop) {
-    waitTop.classList.add('hidden');
-  }
-  const verticalBadge = document.getElementById('splash-vertical-badge');
-  if (verticalBadge) {
-    verticalBadge.classList.add('hidden');
-  }
-}
-
 function hideSplash() {
-  stopLoadingReel();
   const splash = document.getElementById('splash');
   if (splash) splash.classList.add('hidden');
 }
 
-// Sound toggle button on the reel
-const reelSoundBtn = document.getElementById('reel-sound-btn');
-if (reelSoundBtn) {
-  reelSoundBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const iframe = document.getElementById('loading-reel-iframe');
-    if (!iframe || !iframe.contentWindow) return;
-    reelMuted = !reelMuted;
-    if (reelMuted) {
-      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'mute', args: [] }), '*');
-      reelSoundBtn.textContent = '🔊 Tap for Sound';
-      reelSoundBtn.classList.remove('unmuted');
-    } else {
-      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'unMute', args: [] }), '*');
-      iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'setVolume', args: [100] }), '*');
-      reelSoundBtn.textContent = '🔈 Mute Sound';
-      reelSoundBtn.classList.add('unmuted');
-    }
-  });
-}
-
-// Loading bar drawn over the cover art or video reel
+// Loading bar drawn over the cover art (no popup card while loading).
 function setSplashProgress(percent, item, { fromCache = false } = {}) {
   const clamped = Math.max(0, Math.min(100, percent || 0));
   const bar = document.getElementById('splash-bar');
   const label = document.getElementById('splash-label');
   const sublabel = document.getElementById('splash-sublabel');
-  const waitTop = document.getElementById('splash-wait-top');
-  const startBtn = document.getElementById('splash-start-btn');
-
   if (bar) bar.style.width = `${clamped}%`;
   if (label) {
-    label.textContent = clamped >= 100 ? 'Mayapur 3D Ready! 100%' : `Loading Mayapur… ${Math.round(clamped)}%`;
+    label.textContent = `Loading Mayapur… ${Math.round(clamped)}%`;
   }
   if (sublabel) {
     if (fromCache) {
@@ -235,41 +167,6 @@ function setSplashProgress(percent, item, { fromCache = false } = {}) {
       sublabel.textContent = '⏳ 1st time takes ~1 min · Saved for next visit';
     }
   }
-
-  // First time network download: play the YouTube Short in loop while loading
-  if (!fromCache && !loadingReelStarted && clamped < 100) {
-    if (!reelTimer) {
-      reelTimer = setTimeout(() => {
-        if (!fromCache) startLoadingReel();
-      }, 1000);
-    }
-  }
-
-  if (clamped >= 100) {
-    if (waitTop) {
-      waitTop.innerHTML = '<div class="wait-text ready">🎉 GAME IS READY!</div>';
-    }
-    if (startBtn && loadingReelStarted) {
-      startBtn.classList.remove('hidden');
-    }
-  }
-}
-
-const splashStartBtn = document.getElementById('splash-start-btn');
-if (splashStartBtn) {
-  splashStartBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    hideSplash();
-    syncForcedLandscape();
-    if (phase === 'menu' || phase === 'loading') {
-      if (musicNeedsNewTrack) {
-        musicNeedsNewTrack = false;
-        youtubeMusic.requestNewTrack();
-      }
-      youtubeMusic.play();
-      startPlay('drone');
-    }
-  });
 }
 
 // Give every swaying devotee a small devotional placard on a 1 m stick to
@@ -1180,6 +1077,8 @@ async function boot() {
     }
   }
 
+  hideSplash();
+  // The menu appears in forced landscape on phones (no rotate option).
   syncForcedLandscape();
   hud.showOverlay(
     true,
@@ -1189,19 +1088,6 @@ async function boot() {
     { modeChoice: false },
   );
   phase = 'menu';
-
-  if (loadingReelStarted) {
-    const startBtn = document.getElementById('splash-start-btn');
-    if (startBtn) startBtn.classList.remove('hidden');
-    setTimeout(() => {
-      const splash = document.getElementById('splash');
-      if (splash && !splash.classList.contains('hidden')) {
-        hideSplash();
-      }
-    }, 4500);
-  } else {
-    hideSplash();
-  }
 
   const tx = ENTRANCE.doorX;
   const tz = ENTRANCE.doorZ;

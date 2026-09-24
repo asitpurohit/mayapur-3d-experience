@@ -43,43 +43,14 @@
     <canvas id="scene"></canvas>
 
     <div id="splash">
-      <picture id="splash-cover">
+      <picture>
         <source media="(orientation: portrait)" srcset="/images/splash-portrait.webp" />
         <img src="/images/splash.webp" alt="Mayapur Treasure Hunt" />
       </picture>
-
-      <!-- Fullscreen Loading Reel Video -->
-      <div id="loading-reel-container" class="hidden">
-        <div class="reel-video-wrapper">
-          <iframe
-            id="loading-reel-iframe"
-            src=""
-            title="Sri Mayapur Dham Reel"
-            frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowfullscreen
-            playsinline
-          ></iframe>
-        </div>
-        <button id="reel-sound-btn" type="button" class="reel-sound-btn" title="Toggle reel sound">🔊 Tap for Sound</button>
-      </div>
-
-      <!-- Top Overlay Banner: WAIT FOR GAME TO START -->
-      <div id="splash-wait-top" class="splash-wait-banner hidden">
-        <div class="wait-text">⏳ WAIT FOR GAME TO START</div>
-      </div>
-
-      <!-- Right Side Vertical Badge: MAYAPUR TREASURE LOADING -->
-      <div id="splash-vertical-badge" class="splash-vertical-badge hidden">
-        <span>MAYAPUR TREASURE LOADING</span>
-      </div>
-
-      <!-- Loading HUD sits over cover art & video -->
       <div id="splash-progress">
         <div class="splash-bar-bg"><div id="splash-bar"></div></div>
         <div id="splash-label">Loading Mayapur… 0%</div>
         <div id="splash-sublabel">⏳ 1st time takes ~1 min · Saved for next visit</div>
-        <button id="splash-start-btn" type="button" class="splash-start-btn hidden">🎮 GAME READY · PLAY NOW ▶</button>
       </div>
     </div>
 
