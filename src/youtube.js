@@ -29,6 +29,7 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
   let player = null;
   let playerReady = false;
   let startRequested = false;
+  let pendingNewTrack = false;
   let isPlaying = false;
 
   function pickNextTrackId() {
@@ -77,7 +78,10 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
         events: {
           onReady: () => {
             playerReady = true;
-            if (startRequested && !isPlaying) {
+            if (pendingNewTrack) {
+              pendingNewTrack = false;
+              skip();
+            } else if (startRequested && !isPlaying) {
               requestPlayback();
             }
           },
@@ -234,6 +238,16 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     }
   }
 
+  // Play a fresh random track on the next entry (after a deliberate exit).
+  // If the player is not ready yet, it is applied as soon as it is.
+  function requestNewTrack() {
+    if (player && playerReady) {
+      skip();
+      return;
+    }
+    pendingNewTrack = true;
+  }
+
   function requestPlayback() {
     try {
       if (player && typeof player.playVideo === 'function') {
@@ -270,5 +284,5 @@ export function createYouTubeMusic(tracks = TRACK_URLS) {
     });
   }
 
-  return { play, pause, toggle, skip, setVolume, getVolume, setDuck, pickNextTrackId };
+  return { play, pause, toggle, skip, requestNewTrack, setVolume, getVolume, setDuck, pickNextTrackId };
 }

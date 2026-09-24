@@ -36,6 +36,7 @@ let boatHintShown = false;
 let tutorialOpen = false;
 let tutorialDoneThisEntry = false;
 let droneIntroWasActive = false;
+let musicNeedsNewTrack = false;
 let env = null;
 let game = null;
 let touchControls = null;
@@ -925,6 +926,9 @@ function returnToEntrance() {
   // A deliberate exit to the entrance wipes the gift hunt; pausing and
   // resuming (or switching tabs) keeps all progress.
   if (game) game.reset();
+  // Music pauses on exit and restarts with a fresh track on the next entry.
+  youtubeMusic.pause();
+  musicNeedsNewTrack = true;
   // On phones, exiting leaves the immersive landscape game mode.
   exitImmersiveMode();
   hud.showHud(false);
@@ -1130,6 +1134,11 @@ if (isTouchDevice()) {
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
     enterImmersiveMode();
+    // After a deliberate exit, start a fresh random track.
+    if (musicNeedsNewTrack) {
+      musicNeedsNewTrack = false;
+      youtubeMusic.requestNewTrack();
+    }
     youtubeMusic.play();
     startPlay(mode, { resume: phase === 'paused' });
   }
@@ -1140,6 +1149,10 @@ hud.onDrone(() => {
     returnToEntrance();
   } else if (phase === 'menu') {
     enterImmersiveMode();
+    if (musicNeedsNewTrack) {
+      musicNeedsNewTrack = false;
+      youtubeMusic.requestNewTrack();
+    }
     youtubeMusic.play();
     startPlay('drone');
   }
