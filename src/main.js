@@ -963,10 +963,13 @@ function syncForcedLandscape() {
   }
 }
 
-// Immersive mode is entered as the site loads, and retried on the first user
-// gesture because browsers require one for fullscreen / orientation lock.
+// Immersive mode: desktop may go fullscreen, but phones never request it (the
+// browser would show its "swipe from the top to exit fullscreen" toast). The
+// CSS landscape lock keeps phones in landscape instead.
 async function enterImmersiveMode() {
-  await enterLandscapeFullscreen();
+  if (!isTouchDevice()) {
+    await enterLandscapeFullscreen();
+  }
   syncForcedLandscape();
 }
 
@@ -993,7 +996,7 @@ function toggleFullscreenMode() {
   const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
   if (!isFull) {
     enterLandscapeFullscreen();
-    if (fsBtn) fsBtn.textContent = '🗗 Exit';
+    if (fsBtn) fsBtn.textContent = '✕ Exit';
   } else {
     exitImmersiveMode();
     if (fsBtn) fsBtn.textContent = '⛶ Fullscreen';
@@ -1017,31 +1020,23 @@ if (fsBtn) {
 function updateFullscreenBtn() {
   if (!fsBtn) return;
   if (isTouchDevice()) {
-    fsBtn.textContent = '🗗 Exit';
+    fsBtn.textContent = '✕ Exit';
     fsBtn.title = 'Exit to the entrance screen';
     return;
   }
   const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
-  fsBtn.textContent = isFull ? '🗗 Exit' : '⛶ Fullscreen';
+  fsBtn.textContent = isFull ? '✕ Exit' : '⛶ Fullscreen';
 }
 document.addEventListener('fullscreenchange', updateFullscreenBtn);
 document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 updateFullscreenBtn();
 
-// Mobile: no rotate option - the experience is always landscape. Immersive
-// mode is requested as the site loads (and retried on the first gesture).
+// Mobile: no rotate option - the experience is always landscape. Fullscreen is
+// deliberately NOT requested on phones (it triggers the browser's "swipe from
+// the top to exit fullscreen" system toast); the CSS landscape lock is used
+// instead. Desktop keeps its fullscreen button.
 window.addEventListener('resize', syncForcedLandscape);
 window.addEventListener('orientationchange', syncForcedLandscape);
-if (isTouchDevice()) {
-  enterLandscapeFullscreen();
-  const retryImmersive = () => {
-    enterLandscapeFullscreen();
-    window.removeEventListener('pointerdown', retryImmersive);
-    window.removeEventListener('touchstart', retryImmersive);
-  };
-  window.addEventListener('pointerdown', retryImmersive, { once: true, passive: true });
-  window.addEventListener('touchstart', retryImmersive, { once: true, passive: true });
-}
 
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
