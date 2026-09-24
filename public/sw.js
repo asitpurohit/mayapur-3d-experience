@@ -1,6 +1,6 @@
 // Service Worker for ISKCON Mayapur 3D
 // Provides persistent offline-capable Cache Storage for 3D GLB models and assets
-const CACHE_NAME = 'mayapur-3d-cache-v1';
+const CACHE_NAME = 'mayapur-3d-cache-v4';
 
 const CACHE_PATTERNS = [
   /\/models\//,
