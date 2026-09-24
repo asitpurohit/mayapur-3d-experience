@@ -688,6 +688,7 @@ async function boot() {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+    needsRender = true;
   });
   // Size correctly right away, including the forced-landscape case.
   window.dispatchEvent(new Event('resize'));
@@ -840,6 +841,7 @@ function bindTouchClick(el, handler) {
 function pause() {
   if (phase !== 'playing') return;
   phase = 'paused';
+  needsRender = true;
   player.state.enabled = false;
   // pause() keeps the drone's intro flight so it can continue after resume.
   drone.pause();
@@ -856,6 +858,7 @@ function pause() {
 
 function returnToEntrance() {
   phase = 'menu';
+  needsRender = true;
   player.state.enabled = false;
   drone.deactivate();
   boat.exit();
@@ -1111,6 +1114,7 @@ document.addEventListener('visibilitychange', () => {
 
 let last = performance.now();
 let frameCount = 0;
+let needsRender = true;
 
 function stepSimulation(dt) {
   for (const fn of animated) fn(dt);
@@ -1176,8 +1180,19 @@ function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   frameCount += 1;
-  stepSimulation(dt);
-  world.renderer.render(world.scene, world.camera);
+
+  if (phase === 'playing') {
+    // Only active play advances the world and draws.
+    stepSimulation(dt);
+    world.renderer.render(world.scene, world.camera);
+  } else if (needsRender) {
+    // Pause / entrance screens freeze everything: no updates, no animation.
+    // One still frame is drawn so the frozen world stays visible.
+    needsRender = false;
+    stepSimulation(0);
+    world.renderer.render(world.scene, world.camera);
+  }
+
   requestAnimationFrame(frame);
 }
 
