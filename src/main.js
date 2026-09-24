@@ -1001,18 +1001,30 @@ function toggleFullscreenMode() {
 const fsBtn = document.getElementById('fullscreen-btn');
 if (fsBtn) {
   bindTouchClick(fsBtn, () => {
+    // On phones this button leaves the game and returns to the entrance
+    // screen (fullscreen/landscape are managed automatically). On desktop it
+    // keeps toggling fullscreen.
+    if (isTouchDevice()) {
+      if (phase === 'playing' || phase === 'paused') returnToEntrance();
+      return;
+    }
     toggleFullscreenMode();
   });
 }
 
 function updateFullscreenBtn() {
-  const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
-  if (fsBtn) {
-    fsBtn.textContent = isFull ? '🗗 Exit' : '⛶ Fullscreen';
+  if (!fsBtn) return;
+  if (isTouchDevice()) {
+    fsBtn.textContent = '🗗 Exit Game';
+    fsBtn.title = 'Exit to the entrance screen';
+    return;
   }
+  const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  fsBtn.textContent = isFull ? '🗗 Exit' : '⛶ Fullscreen';
 }
 document.addEventListener('fullscreenchange', updateFullscreenBtn);
 document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
+updateFullscreenBtn();
 
 // Mobile: no rotate option - the experience is always landscape. Immersive
 // mode is requested as the site loads (and retried on the first gesture).
