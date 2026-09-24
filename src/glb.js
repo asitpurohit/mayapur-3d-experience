@@ -5,6 +5,17 @@ import { ENTRANCE } from './entrance.js';
 
 const BASE = '/models';
 
+// Decode meshopt buffers on worker threads so streamed models never stall the
+// main thread mid-play (falls back to main-thread decode where workers are not
+// available).
+if (typeof Worker !== 'undefined' && typeof MeshoptDecoder.useWorkers === 'function') {
+  try {
+    MeshoptDecoder.useWorkers(2);
+  } catch (err) {
+    console.warn('[glb] meshopt workers unavailable, decoding on main thread:', err);
+  }
+}
+
 
 function groundObject(root) {
   const box = new THREE.Box3().setFromObject(root);
@@ -419,6 +430,16 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
       added.push(root);
       const box = new THREE.Box3().setFromObject(root);
       onLog(`loaded ${root.name} dim=${maxDimOf(box).toFixed(1)}`);
+
+      // Give the renderer a frame between models so a streamed model never
+      // stalls play (the timer keeps this working in background tabs too).
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 60);
+        requestAnimationFrame(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
     } catch (err) {
       URL.revokeObjectURL(blobUrl);
       console.warn(`[glb] Parse error on ${file}:`, err);

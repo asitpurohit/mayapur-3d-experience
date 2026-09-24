@@ -642,16 +642,19 @@ if (avatar) {
 // Set to false to load every model up front again.
 const PROGRESSIVE_LOADING = true;
 
-// Models loaded after the first paint, in priority order. terrain-orbit and
-// kirtan-followers go together because the procession needs both.
+// Models loaded after the first paint, in priority order. The procession's
+// rath and crowd stream in as two separate loads (two small parse hitches
+// instead of one big one) but are only wired once both have arrived.
 const DEFERRED_MODEL_GROUPS = [
   ['avatar'],
   ['standin-temple'],
   ['terrain-figure'],
-  ['terrain-orbit', 'kirtan-followers'],
+  ['terrain-orbit'],
+  ['kirtan-followers'],
 ];
 
 async function loadDeferredModels(scene, glbs) {
+  const pendingProcession = [];
   for (const names of DEFERRED_MODEL_GROUPS) {
     try {
       const loaded = await loadGlbModels({
@@ -663,7 +666,27 @@ async function loadDeferredModels(scene, glbs) {
       });
       if (!loaded.length) continue;
       glbs.push(...loaded);
-      wireGlbModels(scene, loaded);
+
+      if (names.includes('terrain-orbit') || names.includes('kirtan-followers')) {
+        pendingProcession.push(...loaded);
+        const hasRath = pendingProcession.some((o) => o.name === 'terrain-orbit');
+        const hasCrowd = pendingProcession.some((o) => o.name === 'kirtan-followers');
+        if (!hasRath || !hasCrowd) continue;
+        wireGlbModels(scene, pendingProcession);
+        pendingProcession.length = 0;
+      } else {
+        wireGlbModels(scene, loaded);
+      }
+
+      // Warm the new shaders off the main thread so the first appearance of a
+      // streamed model never compiles a program in the middle of a frame.
+      if (world && world.renderer && typeof world.renderer.compileAsync === 'function') {
+        try {
+          await world.renderer.compileAsync(world.scene, world.camera);
+        } catch (err) {
+          console.warn('[glb] compileAsync failed:', err);
+        }
+      }
       console.info('[glb] streamed', names.join(', '));
     } catch (err) {
       console.warn('[glb] deferred load failed:', names.join(', '), err);
