@@ -65,9 +65,9 @@ const QUESTIONS = [
     answer: 0,
   },
   {
-    question: 'What is a "ghat"?',
-    options: ['A stone lamp', 'Steps leading down to a river', 'A temple garden'],
-    answer: 1,
+    question: 'What does "bhakti" mean?',
+    options: ['Devotional service to the Lord', 'A yogic breathing exercise', 'Fasting on holy days'],
+    answer: 0,
   },
   {
     question: 'What is the name of Mayapur\u2019s grand temple, the Temple of the Vedic Planetarium?',
