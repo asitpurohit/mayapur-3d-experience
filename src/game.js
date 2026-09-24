@@ -356,6 +356,7 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
 
   let delivery = { state: 'idle' };
   let activeGift = null;
+  let activeLocked = false;
   let modalOpen = false;
   let celebrating = false;
   let currentMode = 'drone';
@@ -558,13 +559,25 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
     }
   }
 
-  function setPrompt(gift) {
-    if (gift === activeGift) return;
+  function setPrompt(gift, locked = false) {
+    if (gift === activeGift && locked === activeLocked) return;
     activeGift = gift;
-    hud.showGiftPrompt(!!gift);
+    activeLocked = locked;
+    hud.showGiftPrompt(!!gift, locked ? '🔒 Boat ride needed' : '🎁 Open gift');
     // Free the cursor as soon as a gift is in reach so the player can click
     // "Open gift" (and later the answers) on desktop.
-    if (gift) releasePointerLock();
+    if (gift && !locked) releasePointerLock();
+  }
+
+  // Opens the nearby gift, or explains the boat lock when the player arrived
+  // by drone instead of by boat.
+  function tryOpenActiveGift() {
+    if (!activeGift) return;
+    if (activeLocked) {
+      hud.setGameHint('🔒 This gift floats in the middle of the Ganga — ride the boat from the ghat to unlock it', 9000);
+      return;
+    }
+    if (!modalOpen) openGift(activeGift);
   }
 
   function collectGift(gift) {
@@ -639,11 +652,13 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
 
   window.addEventListener('keydown', (e) => {
     if (e.repeat || e.code !== 'KeyF') return;
-    if (activeGift && !modalOpen) openGift(activeGift);
+    if (modalOpen) return;
+    tryOpenActiveGift();
   });
 
   hud.onGiftOpen(() => {
-    if (activeGift && !modalOpen) openGift(activeGift);
+    if (modalOpen) return;
+    tryOpenActiveGift();
   });
 
   function update(dt, ctx) {
@@ -707,7 +722,22 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
       if (d2 < nearestD2) nearest = heavenly;
     }
 
-    setPrompt(nearest);
+    // Arriving by drone at a boat-only gift shows a locked prompt that
+    // explains a boat ride is needed to unlock it.
+    let locked = null;
+    if (!nearest && ctx.mode === 'drone') {
+      let lockedD2 = OPEN_RADIUS * OPEN_RADIUS;
+      for (const gift of gifts) {
+        if (gift.collected || !gift.boatOnly) continue;
+        const d2 = distanceSquared(activePos, gift);
+        if (d2 < lockedD2) {
+          locked = gift;
+          lockedD2 = d2;
+        }
+      }
+    }
+
+    setPrompt(nearest || locked, !!locked && !nearest);
   }
 
   // Wipe the journey: used only when the player deliberately exits to the

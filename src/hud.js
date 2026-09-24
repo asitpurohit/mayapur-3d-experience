@@ -112,8 +112,14 @@ export function createHud() {
     });
   }
 
-  function showGiftPrompt(visible) {
+  function showGiftPrompt(visible, label = '🎁 Open gift') {
     if (!giftPrompt) return;
+    if (visible && giftOpenBtn) {
+      if (giftOpenBtn.dataset.label !== label) {
+        giftOpenBtn.dataset.label = label;
+        giftOpenBtn.innerHTML = `${label} <span class="key">F</span>`;
+      }
+    }
     giftPrompt.classList.toggle('hidden', !visible);
   }
 
