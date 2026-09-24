@@ -15,6 +15,7 @@ const ARATI = {
   startSeconds: 30,
   floorY: 40.2,
   topY: 47,
+  maxY: 47,
   circleCenterY: 41,
   circleRadius: 1.4,
   circleSpeed: 1.4,
@@ -190,12 +191,16 @@ export function createArati({ scene, hud, music = null }) {
   }
 
   function update(dt, { phase, mode, playerPos }) {
-    const inWalk = phase === 'playing' && mode === 'walk';
+    // Offered on foot at the altar, or by flying the drone into the hall
+    // (the ceiling check keeps it from triggering above the roof).
+    const canOffer = phase === 'playing' && (mode === 'walk' || mode === 'drone');
     near = false;
-    if (inWalk && playerPos) {
+    if (canOffer && playerPos) {
       const dx = playerPos.x - ARATI.x;
       const dz = playerPos.z - ARATI.z;
-      near = Math.hypot(dx, dz) < ARATI.radius && playerPos.y > ARATI.minY;
+      near = Math.hypot(dx, dz) < ARATI.radius
+        && playerPos.y > ARATI.minY
+        && playerPos.y < ARATI.maxY;
     }
 
     const shouldShow = near && !active;

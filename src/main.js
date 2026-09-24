@@ -1202,7 +1202,7 @@ window.addEventListener('keydown', (e) => {
     exitBoat();
   } else if (mode === 'drone' && boatNear) {
     enterBoat();
-  } else if (mode === 'walk' && arati && arati.isNear()) {
+  } else if ((mode === 'walk' || mode === 'drone') && arati && arati.isNear()) {
     arati.start();
   }
 });
@@ -1540,7 +1540,8 @@ function stepSimulation(dt) {
   }
 
   if (arati) {
-    arati.update(dt, { phase, mode, playerPos: player.state.position });
+    const aratiPos = mode === 'drone' && drone ? drone.state.position : player.state.position;
+    arati.update(dt, { phase, mode, playerPos: aratiPos });
   }
   if (blessing) {
     blessing.update(dt);
