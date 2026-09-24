@@ -661,6 +661,8 @@ async function boot() {
 
   hud.setButtonEnabled(true);
   hideSplash();
+  // The menu appears in forced landscape on phones (no rotate option).
+  syncForcedLandscape();
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
@@ -685,6 +687,8 @@ async function boot() {
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
   });
+  // Size correctly right away, including the forced-landscape case.
+  window.dispatchEvent(new Event('resize'));
 
   requestAnimationFrame(frame);
 }
@@ -859,6 +863,8 @@ function returnToEntrance() {
   // A deliberate exit to the entrance wipes the gift hunt; pausing and
   // resuming (or switching tabs) keeps all progress.
   if (game) game.reset();
+  // On phones, exiting leaves the immersive landscape game mode.
+  exitImmersiveMode();
   hud.showHud(false);
   hud.setButtonEnabled(true);
   hud.showOverlay(
@@ -931,29 +937,63 @@ async function enterLandscapeFullscreen() {
   }
 }
 
+function isTouchDevice() {
+  return !!(touchControls && touchControls.isTouchDevice)
+    || ('ontouchstart' in window)
+    || (navigator.maxTouchPoints || 0) > 0;
+}
+
+// On phones the game is always landscape. When the device is physically in
+// portrait (e.g. iOS has no orientation lock), the body is rotated with CSS so
+// the experience stays landscape; rotating the phone removes the rotation.
+// The splash stays upright while loading, then the menu appears landscape.
+function syncForcedLandscape() {
+  if (!isTouchDevice()) return;
+  if (phase === 'loading') return;
+  const portrait = window.innerHeight > window.innerWidth;
+  const forced = document.body.classList.contains('force-landscape');
+  if (portrait && !forced) {
+    document.body.classList.add('force-landscape');
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  } else if (!portrait && forced) {
+    document.body.classList.remove('force-landscape');
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  }
+}
+
+// Immersive mode is entered as the site loads, and retried on the first user
+// gesture because browsers require one for fullscreen / orientation lock.
+async function enterImmersiveMode() {
+  await enterLandscapeFullscreen();
+  syncForcedLandscape();
+}
+
+function exitImmersiveMode() {
+  if (!isTouchDevice()) return;
+  const exitFn = document.exitFullscreen
+    || document.webkitExitFullscreen
+    || document.mozCancelFullScreen
+    || document.msExitFullscreen;
+  if (exitFn && (document.fullscreenElement || document.webkitFullscreenElement)) {
+    try {
+      const p = exitFn.call(document);
+      if (p && typeof p.catch === 'function') p.catch(() => {});
+    } catch {}
+  }
+  if (screen.orientation && typeof screen.orientation.unlock === 'function') {
+    try { screen.orientation.unlock(); } catch {}
+  }
+  document.body.classList.remove('force-landscape');
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+}
+
 function toggleFullscreenMode() {
   const isFull = !!(document.fullscreenElement || document.webkitFullscreenElement);
   if (!isFull) {
     enterLandscapeFullscreen();
     if (fsBtn) fsBtn.textContent = '🗗 Exit';
   } else {
-    const exitFn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-    if (exitFn) {
-      try {
-        const p = exitFn.call(document);
-        if (p && typeof p.catch === 'function') p.catch(() => {});
-      } catch {}
-    }
-    if (screen.orientation && typeof screen.orientation.unlock === 'function') {
-      try { screen.orientation.unlock(); } catch {}
-    }
-    if (document.body.classList.contains('force-landscape')) {
-      document.body.classList.remove('force-landscape');
-      if (rotateBtn) rotateBtn.textContent = '🔄 Landscape';
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 50);
-    }
+    exitImmersiveMode();
     if (fsBtn) fsBtn.textContent = '⛶ Fullscreen';
   }
 }
@@ -974,47 +1014,24 @@ function updateFullscreenBtn() {
 document.addEventListener('fullscreenchange', updateFullscreenBtn);
 document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
 
-// Mobile rotate toggle (for devices with system portrait lock enabled)
-const rotateBtn = document.getElementById('rotate-btn');
-if (rotateBtn) {
-  bindTouchClick(rotateBtn, () => {
-    document.body.classList.toggle('force-landscape');
-    const isForced = document.body.classList.contains('force-landscape');
-    rotateBtn.textContent = isForced ? '🔄 Normal' : '🔄 Landscape';
-    setTimeout(() => {
-      window.dispatchEvent(new Event('resize'));
-    }, 50);
-  });
+// Mobile: no rotate option - the experience is always landscape. Immersive
+// mode is requested as the site loads (and retried on the first gesture).
+window.addEventListener('resize', syncForcedLandscape);
+window.addEventListener('orientationchange', syncForcedLandscape);
+if (isTouchDevice()) {
+  enterLandscapeFullscreen();
+  const retryImmersive = () => {
+    enterLandscapeFullscreen();
+    window.removeEventListener('pointerdown', retryImmersive);
+    window.removeEventListener('touchstart', retryImmersive);
+  };
+  window.addEventListener('pointerdown', retryImmersive, { once: true, passive: true });
+  window.addEventListener('touchstart', retryImmersive, { once: true, passive: true });
 }
-
-// Non-blocking mobile orientation banner
-const rotateBanner = document.getElementById('rotate-banner');
-const rotateClose = document.getElementById('rotate-banner-close');
-if (rotateClose && rotateBanner) {
-  bindTouchClick(rotateClose, () => {
-    rotateBanner.classList.add('hidden');
-  });
-}
-
-function checkMobileOrientation() {
-  const isTouch = touchControls?.isTouchDevice || ('ontouchstart' in window);
-  const isPortrait = window.innerHeight > window.innerWidth;
-  if (rotateBanner) {
-    if (isTouch && isPortrait && !document.body.classList.contains('force-landscape')) {
-      rotateBanner.classList.remove('hidden');
-      setTimeout(() => rotateBanner.classList.add('hidden'), 6000);
-    } else {
-      rotateBanner.classList.add('hidden');
-    }
-  }
-}
-window.addEventListener('resize', checkMobileOrientation);
-window.addEventListener('orientationchange', checkMobileOrientation);
 
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
-    enterLandscapeFullscreen();
-    checkMobileOrientation();
+    enterImmersiveMode();
     youtubeMusic.play();
     startPlay(mode, { resume: phase === 'paused' });
   }
@@ -1024,8 +1041,7 @@ hud.onDrone(() => {
   if (phase === 'paused') {
     returnToEntrance();
   } else if (phase === 'menu') {
-    enterLandscapeFullscreen();
-    checkMobileOrientation();
+    enterImmersiveMode();
     youtubeMusic.play();
     startPlay('drone');
   }
