@@ -1,14 +1,5 @@
 [
   {
-    "file": "temple.glb",
-    "x": 17.7,
-    "z": 60,
-    "rotY": 0,
-    "scale": 1,
-    "name": "standin-temple",
-    "bytes": 44431016
-  },
-  {
     "file": "mayapur_temple_with_color.glb",
     "x": 17.7,
     "z": 60,
@@ -46,6 +37,15 @@
     "role": "avatar",
     "autoGround": false,
     "bytes": 23457412
+  },
+  {
+    "file": "temple.glb",
+    "x": 17.7,
+    "z": 60,
+    "rotY": 0,
+    "scale": 1,
+    "name": "standin-temple",
+    "bytes": 44431016
   },
   {
     "file": "tripo-terrain-figure.glb",

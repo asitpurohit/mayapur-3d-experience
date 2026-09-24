@@ -365,7 +365,7 @@ function createRenderer() {
     // staying pegged at max — the biggest single cause of heat at 30 FPS.
     antialias: !isMobile,
     powerPreference: isMobile ? 'default' : 'high-performance',
-    precision: isMobile ? 'mediump' : 'highp', // 16-bit math is enough on mobile
+    precision: 'highp', // highp is required so PBR materials and spotlights never overflow or render white on mobile
   });
   // 1.5x on mobile restores full crisp Retina clarity without low-res blurriness
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 1.75));
@@ -966,6 +966,16 @@ async function boot() {
 
   hud.setButtonEnabled(true);
   setSplashProgress(100, null);
+
+  // Pre-compile all shaders and warm textures before hiding splash so everything is ready
+  if (renderer && typeof renderer.compileAsync === 'function') {
+    try {
+      await renderer.compileAsync(scene, camera);
+    } catch (e) {
+      console.warn('[render] compileAsync warning:', e);
+    }
+  }
+
   hideSplash();
   // The menu appears in forced landscape on phones (no rotate option).
   syncForcedLandscape();
@@ -1492,26 +1502,25 @@ function shouldAnimate(object, radius = 8) {
   return shouldAnimateAt(_gatePoint, radius);
 }
 
-// The sanctum deities are hidden while the player is far away: at that range
-// the altar is a dot through the doorway, so nothing visible changes.
+// Sanctum deities remain visible at all times
 const INTERIOR_PROP_NAMES = ['narshima', 'guru', 'standin-temple'];
 const interiorProps = [];
-let interiorPropsVisible = true;
 
 function collectInteriorProps(glbs) {
   for (const name of INTERIOR_PROP_NAMES) {
     const obj = glbs.find((o) => o.name === name);
-    if (obj && !interiorProps.includes(obj)) interiorProps.push(obj);
+    if (obj && !interiorProps.includes(obj)) {
+      interiorProps.push(obj);
+      obj.visible = true;
+    }
   }
 }
 
 function updateInteriorVisibility() {
-  if (!interiorProps.length || !world) return;
-  const cam = world.camera.position;
-  const dist = Math.hypot(cam.x - ENTRANCE.doorX, cam.z - (ENTRANCE.interior.altarZ || 55));
-  if (dist > 160) interiorPropsVisible = false;
-  else if (dist < 140) interiorPropsVisible = true;
-  for (const obj of interiorProps) obj.visible = interiorPropsVisible;
+  // Always keep sanctum deities visible
+  for (const obj of interiorProps) {
+    obj.visible = true;
+  }
 }
 
 // Scenery that never moves: freeze its matrices so the renderer skips

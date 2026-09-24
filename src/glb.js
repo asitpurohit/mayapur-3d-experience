@@ -244,15 +244,26 @@ export function isMobileDevice() {
   return false;
 }
 
-const CACHE_NAME = 'mayapur-3d-cache-v1';
+const CACHE_NAME = 'mayapur-3d-cache-v2';
+// Clean up any old or corrupted caches from previous versions automatically
+if (typeof caches !== 'undefined') {
+  caches.keys().then((keys) => {
+    for (const key of keys) {
+      if (key.startsWith('mayapur-3d-cache-') && key !== CACHE_NAME) {
+        caches.delete(key).catch(() => {});
+      }
+    }
+  }).catch(() => {});
+}
+
 // Files above this size are not written to Cache Storage to prevent blowing quotas.
-// Set to 80MB so mayapur-temple (~58MB) can be safely cached on mobile and desktop.
+// Set to 80MB so mayapur-temple (~60MB) can be safely cached on mobile and desktop.
 const BIG_FILE_BYTES = 80 * 1024 * 1024;
 const STALL_TIMEOUT_MS = 45000;
 const DOWNLOAD_ATTEMPTS = 3;
 
 async function fetchBlobWithCache(url, onProgress, opts = {}) {
-  const { cacheBigFiles = true } = opts;
+  const { cacheBigFiles = true, expectedBytes = 0 } = opts;
 
   // 1. Check persistent Cache Storage
   if (typeof caches !== 'undefined') {
@@ -261,8 +272,14 @@ async function fetchBlobWithCache(url, onProgress, opts = {}) {
       const matched = await cache.match(url, { ignoreSearch: true });
       if (matched) {
         const blob = await matched.blob();
-        onProgress?.({ loaded: blob.size, total: blob.size, cached: true });
-        return { blob, cached: true };
+        // If the cached blob is truncated or corrupted, purge it and fetch fresh
+        if (expectedBytes > 0 && blob.size < expectedBytes * 0.95) {
+          console.warn(`[cache] Incomplete blob in cache for ${url} (${blob.size}/${expectedBytes} bytes). Purging.`);
+          await cache.delete(url, { ignoreSearch: true });
+        } else if (blob.size > 0) {
+          onProgress?.({ loaded: blob.size, total: blob.size, cached: true });
+          return { blob, cached: true };
+        }
       }
     } catch (e) {
       console.warn('[cache] Read error:', e);
@@ -274,7 +291,7 @@ async function fetchBlobWithCache(url, onProgress, opts = {}) {
   let lastErr = null;
   for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
     try {
-      return await downloadAttempt(url, onProgress, { cacheBigFiles });
+      return await downloadAttempt(url, onProgress, { cacheBigFiles, expectedBytes });
     } catch (err) {
       lastErr = err;
       console.warn(`[glb] download attempt ${attempt}/${DOWNLOAD_ATTEMPTS} failed for ${url}:`, err?.message || err);
@@ -284,7 +301,7 @@ async function fetchBlobWithCache(url, onProgress, opts = {}) {
   throw lastErr;
 }
 
-async function downloadAttempt(url, onProgress, { cacheBigFiles }) {
+async function downloadAttempt(url, onProgress, { cacheBigFiles, expectedBytes = 0 }) {
   const controller = new AbortController();
   let stallTimer = null;
   const armStall = () => {
@@ -317,12 +334,20 @@ async function downloadAttempt(url, onProgress, { cacheBigFiles }) {
         loaded += value.length;
         onProgress?.({ loaded, total: contentLength, cached: false });
       }
+
+      if (contentLength > 0 && loaded < contentLength) {
+        throw new Error(`Incomplete stream for ${url}: received ${loaded} of ${contentLength} bytes`);
+      }
+      if (expectedBytes > 0 && loaded < expectedBytes * 0.95) {
+        throw new Error(`Incomplete stream for ${url}: received ${loaded} of expected ${expectedBytes} bytes`);
+      }
+
       blob = new Blob(chunks, { type: 'model/gltf-binary' });
     }
 
     // 3. Store the completed file for instant repeat visits. Fire-and-forget
     // so a slow/oversize put can never stall the loading pipeline.
-    if (typeof caches !== 'undefined' && blob) {
+    if (typeof caches !== 'undefined' && blob && blob.size > 0) {
       const tooBig = blob.size > BIG_FILE_BYTES;
       if (cacheBigFiles || !tooBig) {
         caches
@@ -357,6 +382,16 @@ async function downloadAttempt(url, onProgress, { cacheBigFiles }) {
  * Manifest can be a JSON array of { file, x, z, rotY, scale, targetSize } or bare filenames.
  */
 export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, onProgress = () => {}, names = null }) {
+  // CRITICAL: models like narshima.glb and guru.glb use EXT_meshopt_compression.
+  // The WASM decoder MUST be ready before parsing begins, otherwise parse errors occur!
+  if (MeshoptDecoder && MeshoptDecoder.ready) {
+    try {
+      await MeshoptDecoder.ready;
+    } catch (err) {
+      console.warn('[glb] MeshoptDecoder initialization failed:', err);
+    }
+  }
+
   const loader = new GLTFLoader();
   loader.setMeshoptDecoder(MeshoptDecoder);
   const added = [];
@@ -431,110 +466,145 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
     const file = String(slot.file).replace(/^\/+/, '');
     const url = file.startsWith('http') ? file : `${BASE}/${file}`;
     const name = slot.name || file.replace(/\.glb$/i, '');
-    // Don't re-initialize here — slotProgress was pre-seeded with real sizes
-    // above so the overall denominator is always correct from the first byte.
     reportProgress(name);
 
-    let blob = null;
+    let result = null;
     try {
-      const result = await fetchBlobWithCache(
+      result = await fetchBlobWithCache(
         url,
         ({ loaded, total, cached: isCached }) => {
           slotProgress.set(file, { loaded, total: total || loaded });
           if (!isCached) allFromCache = false;
           reportProgress(name);
         },
-        { cacheBigFiles },
+        { cacheBigFiles, expectedBytes: slot.bytes || 0 },
       );
-      blob = result.blob;
-      if (!result.cached) allFromCache = false;
     } catch (err) {
       console.warn(`[glb] Failed to download ${url}:`, err);
       onLog(`failed ${file}`);
       continue;
     }
 
-    const blobUrl = URL.createObjectURL(blob);
+    let blob = result.blob;
+    let gltf = null;
+
+    // First parse attempt
     try {
-      const gltf = await loader.loadAsync(blobUrl);
-      URL.revokeObjectURL(blobUrl);
-
-      const root = gltf.scene;
-      root.name = name;
-
-      const isAvatar = slot.role === 'avatar';
-      applyScale(root, slot);
-      if (slot.rotY != null) root.rotation.y = slot.rotY;
-
-      centerOnXZ(root);
-      root.position.x += slot.x ?? 0;
-      root.position.z += slot.z ?? 0;
-
-      if (!isAvatar) {
-        const groundY = groundHeightAt(root.position.x, root.position.z);
-        root.position.y = groundY + (slot.y ?? 0);
-        if (slot.autoGround !== false) {
-          groundObject(root);
-          const box = new THREE.Box3().setFromObject(root);
-          if (isFinite(box.min.y)) root.position.y += groundY - box.min.y;
-        }
-        // Preserve offset between GLB origin and grounded feet
-        root.userData.footOffset = root.position.y - groundY;
-      } else {
-        root.position.y = 0;
-        const box = new THREE.Box3().setFromObject(root);
-        root.userData.footOffset = isFinite(box.min.y) ? box.min.y - root.position.y : 0;
-        root.position.y = 0;
+      const blobUrl = URL.createObjectURL(blob);
+      try {
+        gltf = await loader.loadAsync(blobUrl);
+      } finally {
+        URL.revokeObjectURL(blobUrl);
       }
+    } catch (parseErr) {
+      console.warn(`[glb] Parse error on ${file}:`, parseErr);
+      // If the corrupted blob came from cache, delete it immediately and retry fresh from network!
+      if (result.cached) {
+        console.warn(`[glb] Retrying fresh download for ${file} from network...`);
+        if (typeof caches !== 'undefined') {
+          try {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.delete(url, { ignoreSearch: true });
+          } catch {}
+        }
+        try {
+          result = await downloadAttempt(url, ({ loaded, total }) => {
+            slotProgress.set(file, { loaded, total: total || loaded });
+            reportProgress(name);
+          }, { cacheBigFiles, expectedBytes: slot.bytes || 0 });
+          blob = result.blob;
+          const freshBlobUrl = URL.createObjectURL(blob);
+          try {
+            gltf = await loader.loadAsync(freshBlobUrl);
+          } finally {
+            URL.revokeObjectURL(freshBlobUrl);
+          }
+        } catch (retryErr) {
+          console.warn(`[glb] Network retry failed for ${file}:`, retryErr);
+        }
+      }
+    }
 
-      // The sanctum deities stand inside the temple's own shade, so their own
-      // shadows never show: keep them out of the shadow pass.
-      const inSanctum = root.name === 'narshima' || root.name === 'guru' || root.name === 'standin-temple';
-      root.traverse((obj) => {
-        if (obj.isMesh) {
-          obj.castShadow = !inSanctum;
-          obj.receiveShadow = true;
-          if (root.name === 'mayapur-temple' && obj.material) {
-            obj.material.side = THREE.DoubleSide;
+    if (!gltf || !gltf.scene) {
+      console.error(`[glb] Could not load model ${name} (${file})`);
+      onLog(`failed ${file}`);
+      continue;
+    }
+
+    const root = gltf.scene;
+    root.name = name;
+
+    const isAvatar = slot.role === 'avatar';
+    applyScale(root, slot);
+    if (slot.rotY != null) root.rotation.y = slot.rotY;
+
+    centerOnXZ(root);
+    root.position.x += slot.x ?? 0;
+    root.position.z += slot.z ?? 0;
+
+    if (!isAvatar) {
+      const groundY = groundHeightAt(root.position.x, root.position.z);
+      root.position.y = groundY + (slot.y ?? 0);
+      if (slot.autoGround !== false) {
+        groundObject(root);
+        const box = new THREE.Box3().setFromObject(root);
+        if (isFinite(box.min.y)) root.position.y += groundY - box.min.y;
+      }
+      // Preserve offset between GLB origin and grounded feet
+      root.userData.footOffset = root.position.y - groundY;
+    } else {
+      root.position.y = 0;
+      const box = new THREE.Box3().setFromObject(root);
+      root.userData.footOffset = isFinite(box.min.y) ? box.min.y - root.position.y : 0;
+      root.position.y = 0;
+    }
+
+    // Deities and altar props: prevent black/white rendering and ensure all PBR textures are refreshed
+    const inSanctum = root.name === 'narshima' || root.name === 'guru' || root.name === 'standin-temple';
+    root.traverse((obj) => {
+      if (obj.isMesh) {
+        obj.castShadow = !inSanctum;
+        obj.receiveShadow = true;
+        if (root.name === 'mayapur-temple' && obj.material) {
+          obj.material.side = THREE.DoubleSide;
+        }
+        if (obj.material) {
+          const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          for (const mat of mats) {
+            for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap']) {
+              if (mat[key]) {
+                mat[key].needsUpdate = true;
+              }
+            }
+            mat.needsUpdate = true;
           }
         }
-      });
+      }
+    });
 
-      scene.add(root);
-      added.push(root);
-      const box = new THREE.Box3().setFromObject(root);
-      onLog(`loaded ${root.name} dim=${maxDimOf(box).toFixed(1)}`);
+    scene.add(root);
+    added.push(root);
+    const box = new THREE.Box3().setFromObject(root);
+    onLog(`loaded ${root.name} dim=${maxDimOf(box).toFixed(1)}`);
 
-      // Give the renderer a frame between models so a streamed model never
-      // stalls play (the timer keeps this working in background tabs too).
-      await new Promise((resolve) => {
-        const timer = setTimeout(resolve, 60);
-        requestAnimationFrame(() => {
-          clearTimeout(timer);
-          resolve();
-        });
+    // Give the renderer a frame between models so a streamed model never
+    // stalls play (the timer keeps this working in background tabs too).
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 60);
+      requestAnimationFrame(() => {
+        clearTimeout(timer);
+        resolve();
       });
-    } catch (err) {
-      URL.revokeObjectURL(blobUrl);
-      console.warn(`[glb] Parse error on ${file}:`, err);
-      onLog(`failed ${file}`);
-    }
+    });
   }
 
   putKrishnaOnPodium(scene, added, groundHeightAt, onLog);
   seatNarshimaOnTemple(scene, added, groundHeightAt, onLog);
   placeGuruOnAltar(scene, added, onLog);
 
-  // Models that never move again: freeze their matrices so the renderer skips
-  // recomposing them every frame.
+  // Ensure world matrix is updated cleanly after altar positioning
   for (const root of added) {
-    if (root.name === 'mayapur-temple' || root.name === 'narshima' || root.name === 'guru') {
-      root.traverse((obj) => {
-        obj.matrixAutoUpdate = false;
-        obj.updateMatrix();
-      });
-      root.updateMatrixWorld(true);
-    }
+    root.updateMatrixWorld(true);
   }
 
   return added;
