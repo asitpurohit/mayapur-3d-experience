@@ -151,13 +151,21 @@ function hideSplash() {
 }
 
 // Loading bar drawn over the cover art (no popup card while loading).
-function setSplashProgress(percent, item) {
+function setSplashProgress(percent, item, { fromCache = false } = {}) {
   const clamped = Math.max(0, Math.min(100, percent || 0));
   const bar = document.getElementById('splash-bar');
   const label = document.getElementById('splash-label');
+  const sublabel = document.getElementById('splash-sublabel');
   if (bar) bar.style.width = `${clamped}%`;
   if (label) {
     label.textContent = `Loading Mayapur… ${Math.round(clamped)}%`;
+  }
+  if (sublabel) {
+    if (fromCache) {
+      sublabel.textContent = '⚡ Loading from local storage… almost ready!';
+    } else {
+      sublabel.textContent = '⏳ Please wait ~1 min (1st time takes time · saved for next visit)';
+    }
   }
 }
 
@@ -817,10 +825,10 @@ async function boot() {
         groundHeightAt,
         names: PROGRESSIVE_LOADING ? ['mayapur-temple', 'narshima', 'guru', 'avatar'] : null,
         onLog: (msg) => glbNotes.push(msg),
-        onProgress: ({ item, percent }) => {
+        onProgress: ({ item, percent, fromCache }) => {
           // Size and device-cache details stay silent; caching happens behind
           // the scenes and only the splash loading bar is updated.
-          setSplashProgress(percent, item);
+          setSplashProgress(percent, item, { fromCache });
         },
       });
   if (liteMode) console.info('[glb] lite mode — model loading skipped');
