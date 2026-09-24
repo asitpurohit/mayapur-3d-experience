@@ -1191,16 +1191,29 @@ function makeRiver() {
   group.name = 'river';
 
   const waterTex = makeWaterTexture();
-  const waterMat = new THREE.MeshPhysicalMaterial({
-    color: 0x47798d,
-    roughness: 0.26,
-    metalness: 0.08,
-    bumpMap: waterTex,
-    bumpScale: 0.34,
-    clearcoat: 0.28,
-    clearcoatRoughness: 0.24,
-    fog: true,
-  });
+  const isMobile = isMobileDevice();
+  // MeshPhysicalMaterial with clearcoat runs two full PBR lighting passes per
+  // pixel. On mobile, MeshStandardMaterial is visually identical from walking
+  // distance and roughly half the shader cost.
+  const waterMat = isMobile
+    ? new THREE.MeshStandardMaterial({
+        color: 0x47798d,
+        roughness: 0.26,
+        metalness: 0.08,
+        bumpMap: waterTex,
+        bumpScale: 0.34,
+        fog: true,
+      })
+    : new THREE.MeshPhysicalMaterial({
+        color: 0x47798d,
+        roughness: 0.26,
+        metalness: 0.08,
+        bumpMap: waterTex,
+        bumpScale: 0.34,
+        clearcoat: 0.28,
+        clearcoatRoughness: 0.24,
+        fog: true,
+      });
 
   const water = new THREE.Mesh(
     buildRiverRibbon({ offset: 0, halfWidth: RIVER.halfWidth, y: RIVER.y, segments: 260, crossSegments: 18 }),

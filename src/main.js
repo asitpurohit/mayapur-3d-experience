@@ -360,16 +360,21 @@ function createRenderer() {
   const isMobile = isMobileDevice();
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: true,
-    powerPreference: 'high-performance',
-    precision: 'highp',
+    // Mobile: no MSAA (1.5x pixel ratio already anti-aliases naturally) and
+    // 'default' power so the GPU can downclock between frames instead of
+    // staying pegged at max — the biggest single cause of heat at 30 FPS.
+    antialias: !isMobile,
+    powerPreference: isMobile ? 'default' : 'high-performance',
+    precision: isMobile ? 'mediump' : 'highp', // 16-bit math is enough on mobile
   });
   // 1.5x on mobile restores full crisp Retina clarity without low-res blurriness
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.5 : 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  // BasicShadowMap (1 sample) vs PCF (9 samples) — hard edges barely visible at 512px
+  renderer.shadowMap.type = isMobile ? THREE.BasicShadowMap : THREE.PCFShadowMap;
+  // Reinhard is cheaper on mobile; ACES is richer on desktop
+  renderer.toneMapping = isMobile ? THREE.ReinhardToneMapping : THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   return renderer;
 }
@@ -541,25 +546,29 @@ if (terrainOrbit) {
   ];
 
   // Eight more dancing crowds far apart on the city's black asphalt streets.
-  const extraBlackRoadSegments = [
-    { z: -610, x1: -600, x2: -250 },
-    { z: -610, x1: 250, x2: 600 },
-    { z: -515, x1: -600, x2: -250 },
-    { z: -515, x1: 250, x2: 600 },
-    { z: 340, x1: -600, x2: -250 },
-    { z: 340, x1: 250, x2: 600 },
-    { z: 435, x1: -600, x2: -250 },
-    { z: 435, x1: 250, x2: 600 },
-  ];
-  extraBlackRoadSegments.forEach((segment, i) => {
-    dancingCrowds.push({
-      name: `black-road-${i + 2}`,
-      path: makeRoadLanePath(segment.z, segment.x1, segment.x2),
-      speed: 4 + (i % 3) * 0.3,
-      offset: (i * 95) % 480,
-      surfaceY: -3.6,
+  // On mobile these are only ever visible from drone altitude — skip the
+  // 8 extra clones and their per-frame animation updates to save CPU/GPU.
+  if (!isMobile) {
+    const extraBlackRoadSegments = [
+      { z: -610, x1: -600, x2: -250 },
+      { z: -610, x1: 250, x2: 600 },
+      { z: -515, x1: -600, x2: -250 },
+      { z: -515, x1: 250, x2: 600 },
+      { z: 340, x1: -600, x2: -250 },
+      { z: 340, x1: 250, x2: 600 },
+      { z: 435, x1: -600, x2: -250 },
+      { z: 435, x1: 250, x2: 600 },
+    ];
+    extraBlackRoadSegments.forEach((segment, i) => {
+      dancingCrowds.push({
+        name: `black-road-${i + 2}`,
+        path: makeRoadLanePath(segment.z, segment.x1, segment.x2),
+        speed: 4 + (i % 3) * 0.3,
+        offset: (i * 95) % 480,
+        surfaceY: -3.6,
+      });
     });
-  });
+  }
 
   // After cloning a model, force every texture to re-upload to the GPU.
   // Clones share material/texture objects with the original. If the original
@@ -639,10 +648,15 @@ if (avatar) {
   // to third person as soon as it arrives.
   if (player) player.state.thirdPerson = true;
   avatar.rotation.y = Math.PI;
-  const faceFill = new THREE.PointLight(0xffd6a0, 1.35, 4.8, 2);
-  faceFill.name = 'character-face-fill';
-  faceFill.position.set(0, 1.55, 0.62);
-  avatar.add(faceFill);
+  // Face fill light makes the avatar's face warmer in shade, but forces PBR
+  // recalc on every mesh within 4.8m each frame. Skip on mobile where outdoor
+  // sunlight already illuminates the face clearly.
+  if (!isMobile) {
+    const faceFill = new THREE.PointLight(0xffd6a0, 1.35, 4.8, 2);
+    faceFill.name = 'character-face-fill';
+    faceFill.position.set(0, 1.55, 0.62);
+    avatar.add(faceFill);
+  }
   const footOff = avatar.userData.footOffset || 0;
   let gaitT = 0;
   animated.push((dt) => {
