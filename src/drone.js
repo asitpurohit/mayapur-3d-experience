@@ -5,6 +5,12 @@ const SETTINGS = {
   friction: 5.5,
   maxSpeed: 26,
   keyboardBoost: 2.7,
+  // Touch joystick: holding a direction ramps the speed up for long trips and
+  // dropping the stick decays it quickly so short moves stay precise.
+  touchBoostMax: 2.2,
+  touchBoostDelay: 0.7,
+  touchBoostRamp: 2.8,
+  touchBoostDecay: 3.2,
   verticalSpeed: 14,
   mouseSensitivity: 0.0022,
   bounds: 750,
@@ -26,6 +32,8 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
 
   const keys = new Set();
   let pointerLocked = false;
+  let touchBoost = 0;
+  let touchHold = 0;
 
   const _dir = new THREE.Vector3();
   const _wish = new THREE.Vector3();
@@ -145,6 +153,8 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
   function deactivate() {
     state.enabled = false;
     state.intro = null;
+    touchBoost = 0;
+    touchHold = 0;
   }
 
   // Re-capture the mouse for camera control. Must be called from a user
@@ -206,6 +216,7 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
 
     // Keyboard pilots fly a little faster than the touch joystick.
     let keyboardInput = false;
+    let touchMoving = false;
 
     if (state.enabled) {
       if (keys.has('KeyW') || keys.has('ArrowUp')) { _wish.add(_forward); keyboardInput = true; }
@@ -220,13 +231,31 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
         if (ts.moveX !== 0 || ts.moveY !== 0) {
           _wish.addScaledVector(_forward, ts.moveY);
           _wish.addScaledVector(_right, ts.moveX);
+          touchMoving = true;
         }
         if (ts.up) _wish.y += 1;
         if (ts.down) _wish.y -= 1;
       }
     }
 
-    const maxSpeed = keyboardInput ? SETTINGS.maxSpeed * SETTINGS.keyboardBoost : SETTINGS.maxSpeed;
+    // Hold the joystick to build up speed for long flights; a quick nudge
+    // stays at normal speed and releasing sheds the boost quickly.
+    if (touchMoving) {
+      touchHold += dt;
+      if (touchHold > SETTINGS.touchBoostDelay) {
+        touchBoost = Math.min(1, touchBoost + dt / SETTINGS.touchBoostRamp);
+      }
+    } else {
+      touchHold = 0;
+      touchBoost = Math.max(0, touchBoost - dt * SETTINGS.touchBoostDecay);
+    }
+
+    let maxSpeed = SETTINGS.maxSpeed;
+    if (keyboardInput) {
+      maxSpeed = SETTINGS.maxSpeed * SETTINGS.keyboardBoost;
+    } else {
+      maxSpeed = SETTINGS.maxSpeed * (1 + (SETTINGS.touchBoostMax - 1) * touchBoost);
+    }
 
     const input = _wish.length();
     if (input > 0) _wish.divideScalar(input);
