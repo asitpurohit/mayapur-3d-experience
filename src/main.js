@@ -680,11 +680,9 @@ if (avatar) {
 
 }
 
-// Progressive loading: the grand temple loads first so the walkable floor and
-// scene structure are ready immediately. The interior deities and exterior props
-// stream in behind the scenes while the user is outside on the entrance stairs.
-// Set to false to load every model up front again.
-const PROGRESSIVE_LOADING = true;
+// All models load upfront before the game starts. The progress bar covers the
+// wait. On repeat visits everything comes from the browser cache so it's instant.
+const PROGRESSIVE_LOADING = false;
 
 // Models loaded after the first paint, in priority order.
 const DEFERRED_MODEL_GROUPS = [
