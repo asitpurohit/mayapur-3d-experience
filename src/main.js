@@ -50,8 +50,7 @@ const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mo
 const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pause';
 
 function menuBody() {
-  return `<p>Take an aerial tour of Sri Mayapur Dham, fly across the grand temple, and cruise on the sacred Ganga.</p>
-    <div class="gift-hunt-banner">
+  return `<div class="gift-hunt-banner">
       <div class="gift-hunt-title">🎁 5 Levels · 55 Hidden Spiritual Gifts!</div>
       <div class="gift-hunt-desc">Fly across Mayapur, discover gifts on high spires, river boats, moving kirtan dancers, and Srila Prabhupada!</div>
     </div>`;
