@@ -373,8 +373,9 @@ function createRenderer() {
   renderer.shadowMap.enabled = true;
   // BasicShadowMap (1 sample) vs PCF (9 samples) — hard edges barely visible at 512px
   renderer.shadowMap.type = isMobile ? THREE.BasicShadowMap : THREE.PCFShadowMap;
-  // Reinhard is cheaper on mobile; ACES is richer on desktop
-  renderer.toneMapping = isMobile ? THREE.ReinhardToneMapping : THREE.ACESFilmicToneMapping;
+  // ACESFilmicToneMapping on both — Reinhard looked flat and low-contrast on mobile.
+  // The heat saving from tone mapping is negligible vs the power/antialias changes.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   return renderer;
 }
