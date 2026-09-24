@@ -382,11 +382,14 @@ function createCamera() {
 // once after the first (temple) load, then again for each group streamed in
 // later, so missing models are simply skipped.
 function wireGlbModels(scene, glbs) {
+collectInteriorProps(glbs);
+
 const krishna = glbs.find((o) => o.name === 'standin-temple');
 if (krishna) {
   const baseY = krishna.position.y;
   let animT = Math.random() * 10;
   animated.push((dt) => {
+    if (!shouldAnimate(krishna, 3)) return;
     animT += dt;
     krishna.rotation.y += dt * 0.9;
     const hop = Math.max(0, Math.sin(animT * 2.4)) ** 2 * 0.45;
@@ -432,6 +435,7 @@ if (terrainFigure) {
   animated.push((dt) => {
     danceT += dt;
     for (const dancer of dancers) {
+      if (!shouldAnimate(dancer.object, 14)) continue;
       const rhythm = danceT * 1.65 + dancer.phase;
       const baseX = templeCenter.x + dancer.side * sideDistance;
       const x = baseX + Math.sin(rhythm * 0.58) * 0.32;
@@ -457,6 +461,7 @@ if (terrainFigure) {
       }
     }
     for (const dancer of extraDancers) {
+      if (!shouldAnimate(dancer.object, 14)) continue;
       const rhythm = danceT * 1.65 + dancer.phase;
       const x = dancer.x + Math.sin(rhythm * 0.58) * 0.3;
       const z = dancer.z + Math.cos(rhythm * 0.58) * 0.3;
@@ -573,6 +578,7 @@ if (terrainOrbit) {
 
   animated.push((dt) => {
     for (const procession of processions) {
+      if (!shouldAnimate(procession.rath || procession.followers, 30)) continue;
       procession.distance = (procession.distance + dt * procession.speed) % procession.path.length;
       const { x, z } = procession.path.pointAt(procession.distance);
       const next = procession.path.pointAt(procession.distance + 1);
@@ -725,7 +731,11 @@ async function boot() {
 
   const templeGarden = buildTempleGarden();
   scene.add(templeGarden);
-  animated.push((dt) => templeGarden.userData.update(dt));
+  animated.push((dt) => {
+    _gatePointB.set(ENTRANCE.doorX, ENTRANCE.interior.hallY, ENTRANCE.interior.altarZ || 55);
+    if (!shouldAnimateAt(_gatePointB, 90)) return;
+    templeGarden.userData.update(dt);
+  });
 
   const vegetation = buildVegetation();
   scene.add(vegetation);
@@ -804,6 +814,16 @@ async function boot() {
   blessing = createBlessing({ scene, camera });
 
   const top = findRidgeTop();
+
+  // Scenery that never moves: freeze its matrices.
+  freezeStaticGroup(terrain);
+  freezeStaticGroup(shrine.group);
+  freezeStaticGroup(path);
+  freezeStaticGroup(entrance);
+  freezeStaticGroup(vegetation);
+  freezeStaticGroup(city);
+  freezeStaticGroup(village);
+  freezeStaticGroup(farms);
 
   world = { renderer, scene, camera, terrain, shrine, path, entrance, vegetation, city, glbs };
   animated.push((dt) => env.update(dt, camera));
@@ -1375,7 +1395,102 @@ let last = performance.now();
 let frameCount = 0;
 let needsRender = true;
 
+// --- Runtime smoothness helpers -------------------------------------------
+// Decor animations only tick while their object is near and roughly in view;
+// everything skipped here is off-screen, so the picture never changes.
+const GATE_NEAR = 40;
+const GATE_FAR = 260;
+const _gateFrustum = new THREE.Frustum();
+const _gateMatrix = new THREE.Matrix4();
+const _gateSphere = new THREE.Sphere();
+const _gatePoint = new THREE.Vector3();
+const _gatePointB = new THREE.Vector3();
+let gateReady = false;
+
+function refreshAnimationGate(camera) {
+  camera.updateMatrixWorld();
+  _gateMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  _gateFrustum.setFromProjectionMatrix(_gateMatrix);
+  gateReady = true;
+}
+
+function shouldAnimateAt(point, radius = 8) {
+  if (!gateReady || !world) return true;
+  const dist = point.distanceTo(world.camera.position);
+  if (dist > GATE_FAR) return false;
+  if (dist <= GATE_NEAR) return true;
+  _gateSphere.set(point, radius);
+  return _gateFrustum.intersectsSphere(_gateSphere);
+}
+
+function shouldAnimate(object, radius = 8) {
+  if (!gateReady || !world || !object) return true;
+  object.getWorldPosition(_gatePoint);
+  return shouldAnimateAt(_gatePoint, radius);
+}
+
+// The sanctum deities are hidden while the player is far away: at that range
+// the altar is a dot through the doorway, so nothing visible changes.
+const INTERIOR_PROP_NAMES = ['narshima', 'guru', 'standin-temple'];
+const interiorProps = [];
+let interiorPropsVisible = true;
+
+function collectInteriorProps(glbs) {
+  for (const name of INTERIOR_PROP_NAMES) {
+    const obj = glbs.find((o) => o.name === name);
+    if (obj && !interiorProps.includes(obj)) interiorProps.push(obj);
+  }
+}
+
+function updateInteriorVisibility() {
+  if (!interiorProps.length || !world) return;
+  const cam = world.camera.position;
+  const dist = Math.hypot(cam.x - ENTRANCE.doorX, cam.z - (ENTRANCE.interior.altarZ || 55));
+  if (dist > 160) interiorPropsVisible = false;
+  else if (dist < 140) interiorPropsVisible = true;
+  for (const obj of interiorProps) obj.visible = interiorPropsVisible;
+}
+
+// Scenery that never moves: freeze its matrices so the renderer skips
+// recomposing them every frame.
+function freezeStaticGroup(root) {
+  if (!root) return;
+  root.traverse((obj) => {
+    obj.matrixAutoUpdate = false;
+    obj.updateMatrix();
+  });
+  root.updateMatrixWorld(true);
+}
+
+// Optional performance readout, enabled with ?stats in the URL.
+const perfOverlay = document.getElementById('perf');
+const perfEnabled = !!perfOverlay && new URLSearchParams(window.location.search).has('stats');
+let perfAccum = 0;
+let perfFrames = 0;
+if (perfOverlay && !perfEnabled) perfOverlay.classList.add('hidden');
+
+function updatePerfOverlay(dt) {
+  if (!perfEnabled || !world) return;
+  perfAccum += dt;
+  perfFrames += 1;
+  if (perfAccum < 0.25) return;
+  const fps = Math.round(perfFrames / perfAccum);
+  perfAccum = 0;
+  perfFrames = 0;
+  const info = world.renderer.info;
+  perfOverlay.textContent = [
+    `${fps} fps`,
+    `draws ${info.render.calls}`,
+    `tris ${(info.render.triangles / 1e6).toFixed(2)}M`,
+    `geo ${info.memory.geometries}`,
+    `tex ${info.memory.textures}`,
+    `prog ${info.programs ? info.programs.length : '-'}`,
+  ].join('  ·  ');
+}
+
 function stepSimulation(dt) {
+  if (world) refreshAnimationGate(world.camera);
+  updateInteriorVisibility();
   for (const fn of animated) fn(dt);
   if (env) youtubeMusic.setDuck(env.getStormDuck());
 
@@ -1440,6 +1555,7 @@ function stepSimulation(dt) {
     altitude: boatMode ? boat.state.position.y : droneMode ? drone.state.position.y : player.state.position.y,
     walked: droneMode || boatMode ? drone.state.travelled : player.state.walked,
   });
+  updatePerfOverlay(dt);
 }
 
 function frame(now) {

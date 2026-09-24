@@ -85,6 +85,7 @@ export function createHud() {
     if (droneBtn) droneBtn.disabled = !on;
   }
 
+  let lastStatsLabel = '';
   function update(dt, { altitude, walked }) {
     fpsAccum += dt;
     fpsFrames += 1;
@@ -93,7 +94,12 @@ export function createHud() {
       fpsAccum = 0;
       fpsFrames = 0;
     }
-    stats.textContent = `${fpsValue || '--'} fps · alt ${altitude.toFixed(0)} m · ${walked.toFixed(0)} m walked`;
+    // Only touch the DOM when the readout actually changes.
+    const label = `${fpsValue || '--'} fps · alt ${altitude.toFixed(0)} m · ${walked.toFixed(0)} m walked`;
+    if (label !== lastStatsLabel) {
+      lastStatsLabel = label;
+      stats.textContent = label;
+    }
   }
 
   function setStatus(text) {

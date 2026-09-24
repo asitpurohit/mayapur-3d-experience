@@ -115,6 +115,15 @@ body {
   opacity: 0.85;
 }
 
+/* Optional performance readout (enabled with ?stats in the URL). */
+#perf {
+  bottom: 44px;
+  left: 12px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  opacity: 0.9;
+}
+
 #gift-counter {
   top: 44px;
   left: 12px;

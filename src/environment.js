@@ -484,6 +484,8 @@ function makeBirdFlock() {
   return masterGroup;
 }
 
+const BIRD_ANCHOR = new THREE.Vector3(0, 100, 0);
+
 const RAIN = {
   count: 2400,
   area: 70,
@@ -1403,7 +1405,11 @@ export function createEnvironment({ scene }) {
 
   function update(dt, camera = null) {
     sunElapsed += dt;
-    birds.userData.update(dt);
+    // Flocks only tick while the camera is anywhere near their flyways; at the
+    // far edges of the map they are specks, so skipping them is invisible.
+    if (!camera || camera.position.distanceTo(BIRD_ANCHOR) < 700) {
+      birds.userData.update(dt);
+    }
     updateHelicopter(helicopter, dt, sunElapsed);
 
     // Every session begins in either clear or wet weather. It then alternates

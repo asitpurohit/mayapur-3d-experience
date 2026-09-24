@@ -416,9 +416,12 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
         root.position.y = 0;
       }
 
+      // The sanctum deities stand inside the temple's own shade, so their own
+      // shadows never show: keep them out of the shadow pass.
+      const inSanctum = root.name === 'narshima' || root.name === 'guru' || root.name === 'standin-temple';
       root.traverse((obj) => {
         if (obj.isMesh) {
-          obj.castShadow = true;
+          obj.castShadow = !inSanctum;
           obj.receiveShadow = true;
           if (root.name === 'mayapur-temple' && obj.material) {
             obj.material.side = THREE.DoubleSide;
@@ -450,6 +453,18 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
   putKrishnaOnPodium(scene, added, groundHeightAt, onLog);
   seatNarshimaOnTemple(scene, added, groundHeightAt, onLog);
   placeGuruOnAltar(scene, added, onLog);
+
+  // Models that never move again: freeze their matrices so the renderer skips
+  // recomposing them every frame.
+  for (const root of added) {
+    if (root.name === 'mayapur-temple' || root.name === 'narshima' || root.name === 'guru') {
+      root.traverse((obj) => {
+        obj.matrixAutoUpdate = false;
+        obj.updateMatrix();
+      });
+      root.updateMatrixWorld(true);
+    }
+  }
 
   return added;
 }
