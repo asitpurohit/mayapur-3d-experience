@@ -829,7 +829,6 @@ const PROGRESSIVE_LOADING = true;
 // kirtan-followers go together because the procession needs both.
 const DEFERRED_MODEL_GROUPS = [
   ['avatar'],
-  ['narshima', 'guru'],
   ['standin-temple'],
   ['terrain-figure'],
   ['terrain-orbit', 'kirtan-followers'],
@@ -913,7 +912,7 @@ async function boot() {
     : await loadGlbModels({
         scene,
         groundHeightAt,
-        names: PROGRESSIVE_LOADING ? ['mayapur-temple'] : null,
+        names: PROGRESSIVE_LOADING ? ['mayapur-temple', 'narshima', 'guru'] : null,
         onLog: (msg) => glbNotes.push(msg),
         onProgress: ({ item, percent }) => {
           // Size and device-cache details stay silent; caching happens behind
