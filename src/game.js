@@ -97,7 +97,7 @@ function buildSpots(villagePoints, farmPoints, temple) {
 
   return [
     { id: 'temple-back', x: (temple.minX + temple.maxX) / 2, z: temple.minZ - 8, lift: 1 },
-    { id: 'temple-roof', x: temple.maxX - 4, z: temple.minZ + 10, y: temple.maxY + 2.5 },
+    { id: 'temple-roof', x: temple.maxX - 4, z: temple.minZ + 10, y: temple.maxY + 2.5, first: true },
     { id: 'gurukul-back', x: GURUKUL.x - 40, z: GURUKUL.z - 18, lift: 1 },
     {
       id: 'ganga-middle',
@@ -247,6 +247,28 @@ function isDescendantOf(object, ancestor) {
   return false;
 }
 
+// Floating "Your first gift" tag with a soft red glow, drawn on a canvas.
+function makeFirstGiftLabel() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 640;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  ctx.font = '700 62px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(255, 40, 20, 0.95)';
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = '#fff2ee';
+  ctx.fillText('Your first gift', canvas.width / 2, canvas.height / 2 + 4);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })
+  );
+  sprite.scale.set(7.2, 1.8, 1);
+  return sprite;
+}
+
 function loadFound() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -299,6 +321,7 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
       group,
       collected: found.includes(spot.id),
       phase: index * 1.1,
+      first: !!spot.first,
       boatOnly: !!spot.boatOnly,
     };
 
@@ -362,6 +385,20 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
   let currentMode = 'drone';
   let elapsed = 0;
   let helicopterAudio = null;
+
+  // The first gift (above the temple roof) is marked with a pulsing red light
+  // and a floating "Your first gift" tag instead of a popup.
+  const firstGift = gifts.find((gift) => gift.first && !gift.collected);
+  let firstGiftLight = null;
+  let firstGiftLabel = null;
+  if (firstGift) {
+    firstGiftLight = new THREE.PointLight(0xff2a18, 24, 48, 1.7);
+    firstGiftLight.position.set(firstGift.x, firstGift.y + 0.6, firstGift.z);
+    scene.add(firstGiftLight);
+    firstGiftLabel = makeFirstGiftLabel();
+    firstGiftLabel.position.set(firstGift.x, firstGift.y + 3.4, firstGift.z);
+    scene.add(firstGiftLabel);
+  }
 
   function stopHelicopterSound() {
     if (helicopterAudio) {
@@ -584,6 +621,12 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
     if (gift.collected) return;
     gift.collected = true;
     if (gift.group) gift.group.visible = false;
+    if (gift.first && firstGiftLight) {
+      scene.remove(firstGiftLight);
+      scene.remove(firstGiftLabel);
+      firstGiftLight = null;
+      firstGiftLabel = null;
+    }
     if (gift.smoke) {
       scene.remove(gift.smoke);
       gift.smoke = null;
@@ -688,6 +731,11 @@ export function createGame({ scene, hud, helicopter, drone, boat = null, village
       gift.group.rotation.y = elapsed * 0.5 + gift.phase;
       if (glint) glint.rotation.y = elapsed * 2.2;
       if (gift.beacon) gift.beacon.material.opacity = 0.16 + Math.sin(elapsed * 2.1) * 0.09;
+    }
+
+    if (firstGiftLight) {
+      firstGiftLight.intensity = 24 + Math.sin(elapsed * 3.1) * 12;
+      firstGiftLabel.position.y = firstGift.y + 3.4 + Math.sin(elapsed * 1.8) * 0.3;
     }
 
     const inVehicle = ctx.mode === 'drone' || ctx.mode === 'boat';

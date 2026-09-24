@@ -16,7 +16,7 @@ const ARATI = {
   floorY: 40.2,
   topY: 47,
   circleCenterY: 41,
-  circleRadius: 2.6,
+  circleRadius: 1.4,
   circleSpeed: 1.4,
 };
 

@@ -38,9 +38,6 @@ let arati = null;
 let blessing = null;
 let boatNear = false;
 let boatHintShown = false;
-let tutorialOpen = false;
-let tutorialDoneThisEntry = false;
-let droneIntroWasActive = false;
 let musicNeedsNewTrack = false;
 let env = null;
 let game = null;
@@ -146,188 +143,8 @@ function buildSideAltar(scene, { url, x, facing, z, width, height, ledgeLength, 
 }
 
 function hideSplash() {
-  stopMantraGame();
   const splash = document.getElementById('splash');
   if (splash) splash.classList.add('hidden');
-}
-
-// Maha-mantra catch game on the loading splash: the words fall from the top,
-// the player taps them in order and each one lights up in the mantra lines.
-// Sometimes two words fall together. Loading always wins - the splash hides
-// as soon as the models are ready.
-const MANTRA_LINES = [
-  ['Hare', 'Krishna', 'Hare', 'Krishna'],
-  ['Krishna', 'Krishna', 'Hare', 'Hare'],
-  ['Hare', 'Rama', 'Hare', 'Rama'],
-  ['Rama', 'Rama', 'Hare', 'Hare'],
-];
-const MANTRA_WORDS = MANTRA_LINES.flat();
-const MANTRA_COLORS = ['#ffd166', '#ff9f43', '#ff8fab', '#74c0fc', '#8ce99a', '#b197fc'];
-
-let mantraIndex = 0;
-let mantraSlots = [];
-let fallingWords = [];
-let mantraRaf = null;
-let mantraLast = 0;
-let mantraSpawnTimer = 0;
-let mantraRunning = false;
-let mantraHintTimer = null;
-
-function flashMantraHint(text) {
-  const hint = document.getElementById('mantra-hint');
-  if (!hint) return;
-  hint.textContent = text;
-  hint.classList.add('flash');
-  if (mantraHintTimer) clearTimeout(mantraHintTimer);
-  mantraHintTimer = setTimeout(() => {
-    hint.textContent = 'Catch the falling words in order';
-    hint.classList.remove('flash');
-  }, 1300);
-}
-
-function spawnFallingWord(index) {
-  const layer = document.getElementById('mantra-fall');
-  if (!layer || !mantraRunning) return;
-
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'mantra-fall-word';
-  el.textContent = MANTRA_WORDS[index];
-  el.style.background = MANTRA_COLORS[index % MANTRA_COLORS.length];
-  const x = 6 + Math.random() * 76;
-  el.style.left = `${x}%`;
-
-  const entry = { el, index, y: -64, vy: 85 + Math.random() * 55, done: false };
-  el.style.top = `${entry.y}px`;
-  el.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    catchFallingWord(entry);
-  });
-
-  layer.appendChild(el);
-  fallingWords.push(entry);
-}
-
-function catchFallingWord(entry) {
-  if (!mantraRunning || entry.done) return;
-
-  if (entry.index !== mantraIndex) {
-    entry.el.classList.remove('wrong');
-    void entry.el.offsetWidth;
-    entry.el.classList.add('wrong');
-    flashMantraHint('Catch the next word!');
-    return;
-  }
-
-  entry.done = true;
-  entry.el.classList.add('caught');
-  const el = entry.el;
-  setTimeout(() => el.remove(), 320);
-
-  const slot = mantraSlots[entry.index];
-  if (slot) slot.classList.add('revealed');
-  mantraIndex += 1;
-  playCollect();
-
-  if (mantraIndex >= MANTRA_WORDS.length) {
-    const done = document.getElementById('mantra-done');
-    if (done) done.classList.remove('hidden');
-    playQuestComplete();
-  }
-}
-
-function updateMantraGame(now) {
-  if (!mantraRunning) return;
-  const dt = Math.min(0.05, (now - mantraLast) / 1000);
-  mantraLast = now;
-
-  const layer = document.getElementById('mantra-fall');
-  const height = layer ? layer.clientHeight : window.innerHeight;
-
-  for (const entry of fallingWords) {
-    if (entry.done) continue;
-    entry.y += entry.vy * dt;
-    entry.el.style.top = `${entry.y}px`;
-
-    if (entry.y > height + 24) {
-      if (entry.index === mantraIndex) {
-        // The needed word always comes back until it is caught.
-        entry.y = -64;
-        entry.el.style.left = `${6 + Math.random() * 76}%`;
-      } else {
-        entry.done = true;
-        entry.el.remove();
-      }
-    }
-  }
-  fallingWords = fallingWords.filter((entry) => !entry.done);
-
-  mantraSpawnTimer -= dt;
-  if (mantraIndex < MANTRA_WORDS.length && mantraSpawnTimer <= 0) {
-    const neededFalling = fallingWords.some((entry) => entry.index === mantraIndex);
-    if (!neededFalling) {
-      spawnFallingWord(mantraIndex);
-      // Sometimes a second word falls along with it.
-      if (Math.random() < 0.45 && mantraIndex + 1 < MANTRA_WORDS.length) {
-        spawnFallingWord(mantraIndex + 1);
-      }
-      mantraSpawnTimer = 1.2 + Math.random() * 1.4;
-    } else {
-      mantraSpawnTimer = 0.4;
-    }
-  }
-
-  mantraRaf = requestAnimationFrame(updateMantraGame);
-}
-
-function startMantraGame() {
-  const wordsEl = document.getElementById('mantra-words');
-  const done = document.getElementById('mantra-done');
-  const hint = document.getElementById('mantra-hint');
-  if (!wordsEl) return;
-
-  wordsEl.innerHTML = '';
-  mantraSlots = [];
-  mantraIndex = 0;
-
-  for (const line of MANTRA_LINES) {
-    const row = document.createElement('div');
-    row.className = 'mantra-line';
-    for (const word of line) {
-      const span = document.createElement('span');
-      span.className = 'mantra-word';
-      span.textContent = word;
-      row.appendChild(span);
-      mantraSlots.push(span);
-    }
-    wordsEl.appendChild(row);
-  }
-
-  for (const entry of fallingWords) entry.el.remove();
-  fallingWords = [];
-  if (done) done.classList.add('hidden');
-  if (hint) {
-    hint.textContent = 'Catch the falling words in order';
-    hint.classList.remove('flash');
-  }
-
-  mantraRunning = true;
-  mantraSpawnTimer = 0;
-  mantraLast = performance.now();
-  mantraRaf = requestAnimationFrame(updateMantraGame);
-}
-
-function stopMantraGame() {
-  mantraRunning = false;
-  if (mantraRaf) cancelAnimationFrame(mantraRaf);
-  mantraRaf = null;
-  for (const entry of fallingWords) entry.el.remove();
-  fallingWords = [];
-}
-
-function initMantra() {
-  startMantraGame();
 }
 
 // Loading bar drawn over the cover art (no popup card while loading).
@@ -855,12 +672,10 @@ async function loadDeferredModels(scene, glbs) {
 }
 
 async function boot() {
-  // No popup while loading: the cover art stays visible with just a bar,
-  // plus the maha-mantra the player can chant word by word.
+  // No popup while loading: the cover art stays visible with just a bar.
   hud.showOverlay(false);
   hud.setButtonEnabled(false);
   setSplashProgress(0, null);
-  initMantra();
 
   const renderer = createRenderer();
   const scene = new THREE.Scene();
@@ -1162,10 +977,7 @@ function startPlay(kind, { resume = false } = {}) {
       drone.resume();
     } else {
       drone.activate(droneFlightPlan());
-      // Fresh entry: the tutorial shows after the intro when nothing is found.
-      tutorialDoneThisEntry = false;
-      droneIntroWasActive = true;
-    }
+        }
     hud.setStatus(DRONE_STATUS);
   } else if (kind === 'boat') {
     player.state.enabled = false;
@@ -1540,7 +1352,6 @@ document.addEventListener('pointerlockchange', () => {
   // The gift hunt releases the cursor on purpose (prompt, question, blessing,
   // tutorial) so the player can click - do not treat that as an Esc pause.
   if (game && game.isInteracting()) return;
-  if (tutorialOpen) return;
   if (document.pointerLockElement !== canvas && phase === 'playing') pause();
 });
 
@@ -1551,36 +1362,6 @@ document.addEventListener('visibilitychange', () => {
 let last = performance.now();
 let frameCount = 0;
 let needsRender = true;
-
-// One-time tutorial shown after the drone intro on a fresh hunt: point the
-// player at the first gift above the temple, then leave them to search.
-function showGameTutorial() {
-  tutorialOpen = true;
-  drone.state.enabled = false;
-  drone.state.velocity.set(0, 0, 0);
-  if (document.pointerLockElement) document.exitPointerLock();
-
-  hud.showTutorial({
-    title: '🎁 Gift Hunt',
-    body: `<p>Your first gift floats <b>above the temple roof</b> — fly up, open it and answer the question.</p>
-      <p class="note">Then search Mayapur on your own for the rest.</p>`,
-    buttonText: 'Got it',
-    onClose: () => {
-      tutorialOpen = false;
-      drone.state.enabled = true;
-      const desktopPointer = window.matchMedia
-        && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-      if (desktopPointer && typeof drone.capturePointer === 'function') {
-        const attempt = drone.capturePointer();
-        if (attempt && typeof attempt.catch === 'function') {
-          attempt.catch(() => {
-            hud.setGameHint('Click anywhere to capture the cursor and keep flying', 4500);
-          });
-        }
-      }
-    },
-  });
-}
 
 function stepSimulation(dt) {
   for (const fn of animated) fn(dt);
@@ -1628,18 +1409,6 @@ function stepSimulation(dt) {
   }
 
   if (phase === 'menu') player.state.camYaw += dt * 0.03;
-
-  // The tutorial appears the moment the cinematic drone intro ends, but only
-  // on a fresh hunt (no gifts found yet).
-  const introActive = !!drone.state.intro;
-  if (droneIntroWasActive && !introActive && !tutorialOpen && mode === 'drone' && phase === 'playing') {
-    const found = game ? game.state().found : [];
-    if (found.length === 0 && !tutorialDoneThisEntry) {
-      tutorialDoneThisEntry = true;
-      showGameTutorial();
-    }
-  }
-  droneIntroWasActive = introActive;
 
   if (boatMode) {
     // While paused the boat holds its position on the water.
