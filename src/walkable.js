@@ -26,6 +26,29 @@ export function prepareWalkableMeshes(root) {
   return meshes;
 }
 
+// Same as above but yields to the event loop every few meshes, so building
+// collision for a huge streamed temple never freezes the page on phones.
+export async function prepareWalkableMeshesAsync(root, { yieldEvery = 8 } = {}) {
+  const out = [];
+  if (!root) return out;
+  root.updateWorldMatrix(true, true);
+  const meshes = [];
+  root.traverse((obj) => {
+    if (obj.isMesh && obj.geometry) meshes.push(obj);
+  });
+  for (let i = 0; i < meshes.length; i++) {
+    const obj = meshes[i];
+    if (!obj.geometry.boundsTree) {
+      obj.geometry.computeBoundsTree({ maxLeafTris: 12 });
+    }
+    out.push(obj);
+    if (i % yieldEvery === yieldEvery - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+  }
+  return out;
+}
+
 export function sampleWalkFloor(x, z, feetY, meshes) {
   if (!meshes || !meshes.length) return null;
 

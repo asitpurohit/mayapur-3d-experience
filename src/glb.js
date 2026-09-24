@@ -234,9 +234,26 @@ function placeGuruOnAltar(scene, glbs, onLog = () => {}) {
   onLog(`guru seated in front of narshima on the altar at (${cx.toFixed(1)}, ${gz.toFixed(1)}, y=${tableTopY.toFixed(2)})`);
 }
 
-const CACHE_NAME = 'mayapur-3d-cache-v1';
+export function isMobileDevice() {
+  try {
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '')) return true;
+    if ((navigator.maxTouchPoints || 0) > 1 && Math.min(screen.width, screen.height) < 820) return true;
+  } catch {
+    // ignore — assume desktop
+  }
+  return false;
+}
 
-async function fetchBlobWithCache(url, onProgress) {
+const CACHE_NAME = 'mayapur-3d-cache-v1';
+// Files above this size are not written to Cache Storage to prevent blowing quotas.
+// Set to 80MB so mayapur-temple (~58MB) can be safely cached on mobile and desktop.
+const BIG_FILE_BYTES = 80 * 1024 * 1024;
+const STALL_TIMEOUT_MS = 45000;
+const DOWNLOAD_ATTEMPTS = 3;
+
+async function fetchBlobWithCache(url, onProgress, opts = {}) {
+  const { cacheBigFiles = true } = opts;
+
   // 1. Check persistent Cache Storage
   if (typeof caches !== 'undefined') {
     try {
@@ -252,56 +269,91 @@ async function fetchBlobWithCache(url, onProgress) {
     }
   }
 
-  // 2. Fetch from network
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} fetching ${url}`);
-  }
-
-  const contentLength = Number(res.headers.get('content-length')) || 0;
-  let blob = null;
-
-  if (!res.body || !contentLength) {
-    blob = await res.blob();
-    onProgress?.({ loaded: blob.size, total: blob.size, cached: false });
-  } else {
-    const reader = res.body.getReader();
-    const chunks = [];
-    let loaded = 0;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      loaded += value.length;
-      onProgress?.({ loaded, total: contentLength, cached: false });
-    }
-    blob = new Blob(chunks, { type: 'model/gltf-binary' });
-  }
-
-  // 3. Store completed file into Cache Storage for instant repeat visits
-  if (typeof caches !== 'undefined' && blob) {
+  // 2. Fetch from network with stall timeout + retries. On flaky mobile
+  // data a single hung chunk reader used to hang the whole boot forever.
+  let lastErr = null;
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
     try {
-      const cache = await caches.open(CACHE_NAME);
-      await cache.put(
-        url,
-        new Response(blob, {
-          headers: {
-            'Content-Type': 'model/gltf-binary',
-            'Content-Length': String(blob.size),
-          },
-        })
-      );
-    } catch (e) {
-      console.warn('[cache] Put error:', e);
+      return await downloadAttempt(url, onProgress, { cacheBigFiles });
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[glb] download attempt ${attempt}/${DOWNLOAD_ATTEMPTS} failed for ${url}:`, err?.message || err);
+      await new Promise((r) => setTimeout(r, 800 * attempt));
     }
   }
+  throw lastErr;
+}
 
-  return { blob, cached: false };
+async function downloadAttempt(url, onProgress, { cacheBigFiles }) {
+  const controller = new AbortController();
+  let stallTimer = null;
+  const armStall = () => {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => controller.abort(), STALL_TIMEOUT_MS);
+  };
+  try {
+    armStall();
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} fetching ${url}`);
+    }
+
+    const contentLength = Number(res.headers.get('content-length')) || 0;
+    let blob = null;
+
+    if (!res.body || !contentLength) {
+      blob = await res.blob();
+      onProgress?.({ loaded: blob.size, total: blob.size, cached: false });
+    } else {
+      const reader = res.body.getReader();
+      const chunks = [];
+      let loaded = 0;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        armStall(); // data is flowing — not stalled
+        chunks.push(value);
+        loaded += value.length;
+        onProgress?.({ loaded, total: contentLength, cached: false });
+      }
+      blob = new Blob(chunks, { type: 'model/gltf-binary' });
+    }
+
+    // 3. Store the completed file for instant repeat visits. Fire-and-forget
+    // so a slow/oversize put can never stall the loading pipeline.
+    if (typeof caches !== 'undefined' && blob) {
+      const tooBig = blob.size > BIG_FILE_BYTES;
+      if (cacheBigFiles || !tooBig) {
+        caches
+          .open(CACHE_NAME)
+          .then((cache) =>
+            cache.put(
+              url,
+              new Response(blob, {
+                headers: {
+                  'Content-Type': 'model/gltf-binary',
+                  'Content-Length': String(blob.size),
+                },
+              }),
+            ),
+          )
+          .catch((e) => console.warn('[cache] Put error:', e));
+      }
+    }
+
+    return { blob, cached: false };
+  } finally {
+    if (stallTimer) clearTimeout(stallTimer);
+  }
 }
 
 /**
- * Load GLB drop-ins from /public/models with persistent device caching and concurrent downloads.
+ * Load GLB drop-ins from /public/models with persistent device caching.
+ * Slots are downloaded AND parsed strictly one at a time and each blob is
+ * released right after parsing, so peak memory stays at a single model.
+ * (The old code fetched everything concurrently and held every blob while
+ * parsing — on phones that stalled or killed the tab mid-load.)
  * Manifest can be a JSON array of { file, x, z, rotY, scale, targetSize } or bare filenames.
  */
 export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, onProgress = () => {}, names = null }) {
@@ -330,13 +382,21 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
   }
 
   if (names) {
+    const order = new Map(names.map((n, i) => [n, i]));
     const wanted = new Set(names);
     const keep = (slot) => wanted.has(slot.name || String(slot.file).replace(/\.glb$/i, ''));
-    slots.splice(0, slots.length, ...slots.filter(keep));
+    const filtered = slots.filter(keep);
+    filtered.sort((a, b) => {
+      const nameA = a.name || String(a.file).replace(/\.glb$/i, '');
+      const nameB = b.name || String(b.file).replace(/\.glb$/i, '');
+      return (order.get(nameA) ?? 999) - (order.get(nameB) ?? 999);
+    });
+    slots.splice(0, slots.length, ...filtered);
   }
 
   const slotProgress = new Map();
   let allFromCache = true;
+  const cacheBigFiles = true;
 
   function reportProgress(activeName) {
     let totalLoaded = 0;
@@ -355,34 +415,34 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
     });
   }
 
-  // Pre-fetch all models concurrently to saturate bandwidth
-  const fetchedSlots = await Promise.all(
-    slots.map(async (slot) => {
-      const file = String(slot.file).replace(/^\/+/, '');
-      const url = file.startsWith('http') ? file : `${BASE}/${file}`;
-      const name = slot.name || file.replace(/\.glb$/i, '');
-      try {
-        const { blob, cached } = await fetchBlobWithCache(url, ({ loaded, total, cached: isCached }) => {
+  // Download and parse one slot at a time. The blob is released immediately
+  // after parsing so phones never hold several huge models in RAM at once.
+  for (const slot of slots) {
+    const file = String(slot.file).replace(/^\/+/, '');
+    const url = file.startsWith('http') ? file : `${BASE}/${file}`;
+    const name = slot.name || file.replace(/\.glb$/i, '');
+    slotProgress.set(file, { loaded: 0, total: 1 });
+    reportProgress(name);
+
+    let blob = null;
+    try {
+      const result = await fetchBlobWithCache(
+        url,
+        ({ loaded, total, cached: isCached }) => {
           slotProgress.set(file, { loaded, total: total || loaded });
           if (!isCached) allFromCache = false;
           reportProgress(name);
-        });
-        if (!cached) allFromCache = false;
-        return { slot, file, url, name, blob, cached };
-      } catch (err) {
-        console.warn(`[glb] Failed to download ${url}:`, err);
-        return { slot, file, url, name, blob: null, err };
-      }
-    })
-  );
-
-  // Parse each loaded model sequentially to maintain stable memory on mobile
-  for (const item of fetchedSlots) {
-    if (!item.blob) {
-      onLog(`failed ${item.file}`);
+        },
+        { cacheBigFiles },
+      );
+      blob = result.blob;
+      if (!result.cached) allFromCache = false;
+    } catch (err) {
+      console.warn(`[glb] Failed to download ${url}:`, err);
+      onLog(`failed ${file}`);
       continue;
     }
-    const { slot, file, name, blob } = item;
+
     const blobUrl = URL.createObjectURL(blob);
     try {
       const gltf = await loader.loadAsync(blobUrl);

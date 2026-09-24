@@ -20,9 +20,9 @@ import { createYouTubeMusic } from './youtube.js';
 import { suspendAudio, resumeAudio, playCollect, playQuestComplete } from './audio.js';
 import { createGame } from './game.js';
 import { createTouchControls } from './touch-controls.js';
-import { loadGlbModels, glbHelpText } from './glb.js';
+import { loadGlbModels, glbHelpText, isMobileDevice } from './glb.js';
 import { buildEntrance, entranceHeightAt, getTempleColliders, ENTRANCE, insideTempleFootprint } from './entrance.js';
-import { prepareWalkableMeshes, sampleWalkFloor } from './walkable.js';
+import { prepareWalkableMeshes, prepareWalkableMeshesAsync, sampleWalkFloor } from './walkable.js';
 
 const canvas = document.getElementById('scene');
 const hud = createHud();
@@ -359,8 +359,15 @@ function createTempleFlag(scene, templeRoot) {
 }
 
 function createRenderer() {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+  const isMobile = isMobileDevice();
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: !isMobile,
+    powerPreference: isMobile ? 'default' : 'high-performance',
+    precision: isMobile ? 'mediump' : 'highp',
+  });
+  // Desktop gets crisp 1.75x; phones get cool, fast 1.0x (cuts pixel shading by ~55%)
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.0 : 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -376,7 +383,7 @@ function createCamera() {
 }
 
 // Wires whichever GLB models are present in `glbs` into the scene. Called
-// once after the first (temple) load, then again for each group streamed in
+// once after the first (deity) load, then again for each group streamed in
 // later, so missing models are simply skipped.
 function wireGlbModels(scene, glbs) {
 collectInteriorProps(glbs);
@@ -643,21 +650,24 @@ if (avatar) {
 
 }
 
-// Progressive loading: the temple loads first so play can start sooner, then
-// the remaining models stream in behind the scenes (wired as they arrive).
+// Progressive loading: the grand temple loads first so the walkable floor and
+// scene structure are ready immediately. The interior deities and exterior props
+// stream in behind the scenes while the user is outside on the entrance stairs.
 // Set to false to load every model up front again.
 const PROGRESSIVE_LOADING = true;
 
-// Models loaded after the first paint, in priority order. The procession's
-// rath and crowd stream in as two separate loads (two small parse hitches
-// instead of one big one) but are only wired once both have arrived.
+// Models loaded after the first paint, in priority order.
 const DEFERRED_MODEL_GROUPS = [
+  ['narshima', 'guru'],
   ['avatar'],
   ['standin-temple'],
   ['terrain-figure'],
   ['terrain-orbit'],
   ['kirtan-followers'],
 ];
+
+// Walkable temple floor meshes.
+let walkMeshes = [];
 
 async function loadDeferredModels(scene, glbs) {
   const pendingProcession = [];
@@ -672,6 +682,19 @@ async function loadDeferredModels(scene, glbs) {
       });
       if (!loaded.length) continue;
       glbs.push(...loaded);
+
+      // The temple usually arrives here (streamed after first paint). Build
+      // its walkable collision in small slices so phones never freeze.
+      const lateTemple = loaded.find((o) => o.name === 'mayapur-temple');
+      if (lateTemple) {
+        try {
+          const meshes = await prepareWalkableMeshesAsync(lateTemple);
+          walkMeshes.push(...meshes);
+          console.info(`[walkable] +${meshes.length} streamed temple mesh(es) with BVH`);
+        } catch (err) {
+          console.warn('[walkable] deferred BVH failed:', err);
+        }
+      }
 
       if (names.includes('terrain-orbit') || names.includes('kirtan-followers')) {
         pendingProcession.push(...loaded);
@@ -694,6 +717,8 @@ async function loadDeferredModels(scene, glbs) {
         }
       }
       console.info('[glb] streamed', names.join(', '));
+      // Give the render loop breathing room between streamed groups on mobile
+      await new Promise((r) => setTimeout(r, 200));
     } catch (err) {
       console.warn('[glb] deferred load failed:', names.join(', '), err);
     }
@@ -760,7 +785,7 @@ async function boot() {
     : await loadGlbModels({
         scene,
         groundHeightAt,
-        names: PROGRESSIVE_LOADING ? ['mayapur-temple', 'narshima', 'guru'] : null,
+        names: PROGRESSIVE_LOADING ? ['mayapur-temple'] : null,
         onLog: (msg) => glbNotes.push(msg),
         onProgress: ({ item, percent }) => {
           // Size and device-cache details stay silent; caching happens behind
@@ -774,7 +799,7 @@ async function boot() {
 
   wireGlbModels(scene, glbs);
   const templeRoot = glbs.find((o) => o.name === 'mayapur-temple');
-  const walkMeshes = prepareWalkableMeshes(templeRoot);
+  walkMeshes.push(...prepareWalkableMeshes(templeRoot));
   console.info(`[walkable] ${walkMeshes.length} temple mesh(es) with BVH`);
 
   const groundHeight = (x, z, feetY = ENTRANCE.temple.minY) => {
@@ -1574,9 +1599,19 @@ function stepSimulation(dt) {
   updatePerfOverlay(dt);
 }
 
+const isMobile = isMobileDevice();
+const MOBILE_FRAME_MS = 1000 / 30; // 30 FPS cap on mobile to let CPU/GPU cool
+let lastFrameTime = 0;
+
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
+  requestAnimationFrame(frame);
+
+  // On mobile, throttle to 30 FPS so CPU/GPU sleep between frames
+  if (isMobile && lastFrameTime && now - lastFrameTime < MOBILE_FRAME_MS) {
+    return;
+  }
+  const dt = Math.min(0.05, (now - (lastFrameTime || now)) / 1000);
+  lastFrameTime = now;
   frameCount += 1;
 
   if (phase === 'playing') {
@@ -1590,9 +1625,14 @@ function frame(now) {
     stepSimulation(0);
     world.renderer.render(world.scene, world.camera);
   }
-
-  requestAnimationFrame(frame);
 }
+
+// Automatically pause rendering when tab is in background or phone is locked
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && phase === 'playing') {
+    pause();
+  }
+});
 
 boot().catch((err) => {
   console.error(err);

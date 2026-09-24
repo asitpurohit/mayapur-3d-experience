@@ -68,9 +68,13 @@ function rawGroundHeight(x, z) {
   h += (0.25 + profile * 0.75) * micro * 0.85;
 
   // Fall away toward the map edge so the mesh meets the far ground plane
-  // cleanly instead of poking through it in jagged slivers.
+  // cleanly at y = -3.7 (matching the city flats, streets, and far-ground plane).
   const dFar = Math.hypot(x, z);
-  h -= smoothstep(150, 210, dFar) * 2.6;
+  if (dFar >= 210) return -3.7;
+  if (dFar > 150) {
+    const t = smoothstep(150, 210, dFar);
+    return h * (1 - t) + -3.7 * t;
+  }
 
   return h;
 }

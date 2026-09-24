@@ -12,7 +12,7 @@ const SETTINGS = {
   playerRadius: 0.35,
   maxSlope: THREE.MathUtils.degToRad(50),
   mouseSensitivity: 0.0022,
-  bounds: 205,
+  bounds: 750,
 };
 
 function shortestAngle(from, to) {

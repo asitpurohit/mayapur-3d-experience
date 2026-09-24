@@ -10,3 +10,6 @@ dist
 # Raw offline assets
 raw_assets/
 *.fbx
+
+# Knowledge graph
+graphify-out/

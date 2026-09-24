@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { valueNoise2 } from './noise.js';
 import { ENTRANCE, insideTempleFootprint } from './entrance.js';
 import { getAudioContext } from './audio.js';
+import { isMobileDevice } from './glb.js';
 
 const SKY_TOP_DAWN = new THREE.Color(0x4f82be);
 const SKY_TOP_DAY = new THREE.Color(0x5690cf);
@@ -1325,9 +1326,11 @@ export function createEnvironment({ scene }) {
   scene.add(river);
 
   // Radiant Golden Morning Sun Light
+  const isMobile = isMobileDevice();
   const sun = new THREE.DirectionalLight(0xffbe7a, 2.50);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  const shadowSize = isMobile ? 512 : 2048;
+  sun.shadow.mapSize.set(shadowSize, shadowSize);
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.04;
   const half = 110;
