@@ -23,6 +23,7 @@ import { createTouchControls } from './touch-controls.js';
 import { loadGlbModels, glbHelpText, isMobileDevice } from './glb.js';
 import { buildEntrance, entranceHeightAt, getTempleColliders, ENTRANCE, insideTempleFootprint } from './entrance.js';
 import { prepareWalkableMeshes, prepareWalkableMeshesAsync, sampleWalkFloor } from './walkable.js';
+import { getCachedVisitorCount, fetchCurrentCount, recordGameEntry } from './visitors.js';
 
 const canvas = document.getElementById('scene');
 const hud = createHud();
@@ -49,7 +50,9 @@ const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mo
 const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pause';
 
 function menuBody() {
+  const count = getCachedVisitorCount().toLocaleString();
   return `<p>Walk the sacred Mayapur Dham as Srila Prabhupada for darshan of Lord Narsimhadev, or take the drone up for an aerial tour of the grand temple.</p>
+    <p class="note" style="color: #ffd885; margin: 8px 0; font-weight: 600;">🛕 <b>${count}</b> pilgrims have entered Sri Mayapur Dham</p>
     <p class="note"><b>🎁 Gift Hunt — PLAY GAME:</b> 11 gifts are hidden across Mayapur Dham. Fly close to a gift, open it and answer a spiritual question to receive it. Find all 11 for a blessing.</p>`;
 }
 
@@ -967,6 +970,21 @@ async function boot() {
   hud.setButtonEnabled(true);
   setSplashProgress(100, null);
 
+  // Initialize visitor counter with cached/default count and fetch latest
+  hud.setVisitorCount(getCachedVisitorCount());
+  fetchCurrentCount().then((count) => {
+    hud.setVisitorCount(count);
+    if (phase === 'menu') {
+      hud.showOverlay(
+        true,
+        'ISKCON Mayapur',
+        menuBody(),
+        'Enter Temple',
+        { modeChoice: true },
+      );
+    }
+  }).catch(() => {});
+
   // Pre-compile all shaders and warm textures before hiding splash so everything is ready
   if (renderer && typeof renderer.compileAsync === 'function') {
     try {
@@ -1074,6 +1092,13 @@ function startPlay(kind, { resume = false } = {}) {
   hud.showOverlay(false);
   hud.showHud(true);
   phase = 'playing';
+
+  // Increment pilgrim count on first actual entry into temple / game
+  if (!resume) {
+    recordGameEntry().then((newCount) => {
+      hud.setVisitorCount(newCount);
+    }).catch(() => {});
+  }
 
   if (kind === 'drone') {
     player.state.enabled = false;

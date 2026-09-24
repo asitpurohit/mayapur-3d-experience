@@ -7,7 +7,14 @@ export function createHud() {
   const status = document.getElementById('status');
 
   const giftCounter = document.getElementById('gift-counter');
+  const visitorCountEl = document.getElementById('visitor-count');
   const giftPrompt = document.getElementById('gift-prompt');
+
+  function setVisitorCount(count) {
+    if (visitorCountEl) {
+      visitorCountEl.textContent = Number(count).toLocaleString();
+    }
+  }
   const giftOpenBtn = document.getElementById('gift-open-btn');
   const giftHint = document.getElementById('gift-hint');
   const giftModal = document.getElementById('gift-modal');
@@ -288,5 +295,6 @@ export function createHud() {
     closeQuestion,
     showBlessing,
     showTutorial,
+    setVisitorCount,
   };
 }

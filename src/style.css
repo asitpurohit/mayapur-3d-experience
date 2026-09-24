@@ -109,6 +109,19 @@ body {
   left: 12px;
 }
 
+#visitor-counter {
+  top: 44px;
+  left: 12px;
+  pointer-events: none;
+  font-weight: 600;
+  color: #fff2cc;
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 #status {
   bottom: 12px;
   left: 12px;
@@ -125,7 +138,7 @@ body {
 }
 
 #gift-counter {
-  top: 44px;
+  top: 76px;
   left: 12px;
   pointer-events: none;
   border: 1px solid rgba(255, 215, 0, 0.28);
@@ -133,7 +146,7 @@ body {
 
 #gift-hint {
   position: absolute;
-  top: 74px;
+  top: 108px;
   left: 12px;
   max-width: 250px;
   padding: 6px 10px;
@@ -833,13 +846,19 @@ body {
     font-size: 11px;
     padding: 5px 8px;
   }
+  #visitor-counter {
+    left: 64px;
+    top: 44px;
+    font-size: 11px;
+    padding: 4px 8px;
+  }
   #gift-counter {
     left: 64px;
-    top: 46px;
+    top: 74px;
   }
   #gift-hint {
     left: 64px;
-    top: 76px;
+    top: 104px;
     max-width: 200px;
   }
   #gift-prompt {
