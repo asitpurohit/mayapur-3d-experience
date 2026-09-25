@@ -153,9 +153,12 @@ export function createDrone({ camera, domElement, groundHeight, touchControls = 
 
   function deactivate() {
     state.enabled = false;
+    state.started = false;
     state.intro = null;
+    state.velocity.set(0, 0, 0);
     moveBoost = 0;
     moveHold = 0;
+    keys.clear();
   }
 
   // Re-capture the mouse for camera control. Must be called from a user

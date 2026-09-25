@@ -64,13 +64,12 @@ let gameSessionStarted = false;
 
 function menuBody() {
   const st = game ? game.state() : null;
-  const inProgress = gameSessionStarted && st;
-  const level = st ? st.level : 1;
+  const level = st ? st.currentLevel : 1;
   const foundCount = st ? st.found.length : 0;
-  if (inProgress) {
+  if (foundCount > 0 || level > 1) {
     return `<div class="gift-hunt-banner">
-        <div class="gift-hunt-title">🎁 Level ${level} in Progress · ${foundCount}/11 Gifts</div>
-        <div class="gift-hunt-desc">Your journey is saved! Tap PLAY GAME to return directly to where you were exploring.</div>
+        <div class="gift-hunt-title">🎁 Level ${level} · ${foundCount}/11 Gifts Preserved</div>
+        <div class="gift-hunt-desc">Your sacred gift score is preserved! Enter to continue your spiritual parikrama of Sri Mayapur Dham.</div>
       </div>`;
   }
   return `<div class="gift-hunt-banner">
@@ -1375,15 +1374,26 @@ function pause() {
 function returnToMenu() {
   needsRender = true;
   player.state.enabled = false;
-  // Keep the drone & boat exactly where they are; do not deactivate or reset to spawn.
-  drone.pause();
+  player.reset();
+
+  // Reset drone, boat, and mode back to the initial start
+  drone.deactivate();
   boat.pause();
+  boat.exit();
+  boat.resetToSpawn();
+
+  mode = 'drone';
+  gameSessionStarted = false;
   boatNear = false;
   boatHintShown = false;
   if (hud.showBoatPrompt) hud.showBoatPrompt(false);
-  // Do NOT wipe game progress or reset levels/gifts!
+  // Cancel active modals/hints while PRESERVING game score, level, and collected gifts
+  if (game && typeof game.cancelInteractions === 'function') {
+    game.cancelInteractions();
+  }
   if (arati) arati.stop();
   if (blessing) blessing.stop();
+  musicNeedsNewTrack = true;
   exitImmersiveMode();
   hud.showHud(false);
   hud.showOverlay(false);
@@ -1395,8 +1405,8 @@ function returnToMenu() {
       if (autoStart) {
         enterImmersiveMode();
         youtubeMusic.play();
-        const shouldResume = gameSessionStarted && drone.state.started;
-        startPlay(mode || 'drone', { resume: shouldResume });
+        startPlay('drone', { resume: false });
+        gameSessionStarted = true;
       } else {
         hud.showOverlay(
           true,
@@ -1623,8 +1633,8 @@ hud.onStart(() => {
       youtubeMusic.requestNewTrack();
     }
     youtubeMusic.play();
-    const shouldResume = phase === 'paused' || (gameSessionStarted && drone.state.started);
-    startPlay(mode || 'drone', { resume: shouldResume });
+    const shouldResume = phase === 'paused';
+    startPlay(shouldResume ? (mode || 'drone') : 'drone', { resume: shouldResume });
     gameSessionStarted = true;
   }
 });

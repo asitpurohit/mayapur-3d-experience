@@ -917,6 +917,20 @@ export function createGame({
     }
   }
 
+  function cancelInteractions() {
+    modalOpen = false;
+    celebrating = false;
+    activeGift = null;
+    activeLocked = false;
+    if (hud.closeQuestion) hud.closeQuestion();
+    if (hud.showGiftPrompt) hud.showGiftPrompt(false);
+    stopHelicopterSound();
+    if (delivery.state !== 'idle' && delivery.state !== 'dropped') {
+      delivery.state = 'idle';
+      if (helicopter) helicopter.visible = false;
+    }
+  }
+
   const _dropRay = new THREE.Raycaster();
   const _dropOrigin = new THREE.Vector3();
   const _down = new THREE.Vector3(0, -1, 0);
@@ -1469,6 +1483,7 @@ export function createGame({
 
   return {
     update,
+    cancelInteractions,
     reset: resetCurrentLevel,
     resetAll: resetAllLevels,
     advanceToLevel,
