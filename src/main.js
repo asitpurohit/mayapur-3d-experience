@@ -811,14 +811,12 @@ if (avatar) {
 
 }
 
-// Progressive streaming: stream the essential models (temple and Lord Narsimhadev)
-// first in the background. Remaining models follow during gameplay.
+// Progressive streaming: 3D Temple & Lord Narsimhadev load first as core models.
+// Secondary background models stream in during gameplay in priority order.
 const PROGRESSIVE_LOADING = true;
 
-// Models loaded in the background after the game starts, in priority order.
+// Models loaded in the background after core deities are ready, in priority order.
 const DEFERRED_MODEL_GROUPS = [
-  ['mayapur-temple'],
-  ['narshima'],
   ['guru'],
   ['avatar'],
   ['terrain-figure'],
@@ -851,40 +849,6 @@ async function loadDeferredModels(scene, glbs) {
         player.state.thirdPerson = true;
       }
 
-      // The temple arrives here (streamed in the background). Build
-      // its walkable collision in small slices so phones never freeze.
-      const lateTemple = loaded.find((o) => o.name === 'mayapur-temple');
-      if (lateTemple) {
-        try {
-          const meshes = await prepareWalkableMeshesAsync(lateTemple);
-          walkMeshes.push(...meshes);
-          console.info(`[walkable] +${meshes.length} streamed temple mesh(es) with BVH`);
-          if (game) {
-            const box = new THREE.Box3().setFromObject(lateTemple);
-            if (!box.isEmpty()) {
-              game.temple = {
-                minX: box.min.x,
-                maxX: box.max.x,
-                minY: box.min.y,
-                minZ: box.min.z,
-                maxZ: box.max.z,
-                maxY: box.max.y,
-              };
-            }
-          }
-        } catch (err) {
-          console.warn('[walkable] deferred BVH failed:', err);
-        }
-      }
-
-      if (names.includes('narshima') || names.includes('mayapur-temple')) {
-        const hasTemple = glbs.some((o) => o.name === 'mayapur-temple');
-        const hasNar = glbs.some((o) => o.name === 'narshima');
-        if (hasTemple && hasNar) {
-          motionGraphic.markDeitiesReady();
-        }
-      }
-
       if (names.includes('terrain-orbit') || names.includes('kirtan-followers')) {
         pendingProcession.push(...loaded);
         const hasRath = pendingProcession.some((o) => o.name === 'terrain-orbit');
@@ -913,6 +877,7 @@ async function loadDeferredModels(scene, glbs) {
     }
   }
 }
+
 
 async function boot() {
   // No popup while loading: motion graphic starts instantly with 0s wait time
@@ -1134,41 +1099,15 @@ async function boot() {
   });
   window.__hill.game = game;
 
-  hud.setButtonEnabled(true);
-  setSplashProgress(100, null);
-
   // Initialize visitor counter with cached/default count and fetch latest
   hud.setVisitorCount(getCachedVisitorCount());
   fetchCurrentCount().then((count) => {
     hud.setVisitorCount(count);
   }).catch(() => {});
 
-  // Pre-compile all shaders and warm textures before hiding splash so everything is ready
-  if (renderer && typeof renderer.compileAsync === 'function') {
-    try {
-      await renderer.compileAsync(scene, camera);
-    } catch (e) {
-      console.warn('[render] compileAsync warning:', e);
-    }
-  }
-
-  // Signal to the motion graphic that initial models & shaders are ready!
-  motionGraphic.setReady();
-
   hideSplash();
   // The menu appears in forced landscape on phones (no rotate option).
   syncForcedLandscape();
-
-  if (hasShotParam) {
-    hud.showOverlay(
-      true,
-      'ISKCON Mayapur',
-      menuBody(),
-      'PLAY GAME',
-      { modeChoice: false },
-    );
-    phase = 'menu';
-  }
 
   const tx = ENTRANCE.doorX;
   const tz = ENTRANCE.doorZ;
@@ -1189,12 +1128,85 @@ async function boot() {
   // Size correctly right away, including the forced-landscape case.
   window.dispatchEvent(new Event('resize'));
 
-  // Stream the remaining models in the background (menu/play is already up).
-  if (!liteMode && PROGRESSIVE_LOADING) {
-    loadDeferredModels(scene, glbs);
+  // Start rendering frame loop immediately so background canvas and particle animations are live
+  requestAnimationFrame(frame);
+
+  // CORE ESSENTIAL MODELS: 3D Temple & Lord Narsimhadev MUST be loaded before entering the game!
+  async function loadCoreModelsAndReady() {
+    if (!liteMode) {
+      try {
+        const coreLoaded = await loadGlbModels({
+          scene,
+          groundHeightAt,
+          names: ['mayapur-temple', 'narshima'],
+          onLog: (msg) => console.info('[glb]', msg),
+          onProgress: ({ item, percent, fromCache }) => {
+            setSplashProgress(percent, item, { fromCache });
+          },
+        });
+        glbs.push(...coreLoaded);
+        wireGlbModels(scene, coreLoaded);
+
+        const templeRoot = coreLoaded.find((o) => o.name === 'mayapur-temple');
+        if (templeRoot) {
+          try {
+            const meshes = await prepareWalkableMeshesAsync(templeRoot);
+            walkMeshes.push(...meshes);
+            console.info(`[walkable] +${meshes.length} temple mesh(es) with BVH`);
+            if (game) {
+              const box = new THREE.Box3().setFromObject(templeRoot);
+              if (!box.isEmpty()) {
+                game.temple = {
+                  minX: box.min.x,
+                  maxX: box.max.x,
+                  minY: box.min.y,
+                  minZ: box.min.z,
+                  maxZ: box.max.z,
+                  maxY: box.max.y,
+                };
+              }
+            }
+          } catch (err) {
+            console.warn('[walkable] BVH failed:', err);
+          }
+        }
+      } catch (err) {
+        console.error('[glb] Core models load failed:', err);
+      }
+    }
+
+    if (renderer && typeof renderer.compileAsync === 'function') {
+      try {
+        await renderer.compileAsync(scene, camera);
+      } catch (e) {
+        console.warn('[render] compileAsync warning:', e);
+      }
+    }
+
+    // Both the 3D Temple and Lord Narsimhadev on His altar are fully loaded and prepared!
+    motionGraphic.markDeitiesReady();
+    motionGraphic.setReady();
+    hud.setButtonEnabled(true);
+    setSplashProgress(100, 'narshima');
+
+    if (hasShotParam) {
+      hud.showOverlay(
+        true,
+        'ISKCON Mayapur',
+        menuBody(),
+        'PLAY GAME',
+        { modeChoice: false },
+      );
+      phase = 'menu';
+    }
+
+    // Now stream the remaining secondary models in the background during gameplay
+    if (!liteMode && PROGRESSIVE_LOADING) {
+      loadDeferredModels(scene, glbs);
+    }
   }
 
-  requestAnimationFrame(frame);
+  loadCoreModelsAndReady();
 }
 
 let shotCam = null;
