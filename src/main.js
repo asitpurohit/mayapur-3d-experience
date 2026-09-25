@@ -1481,6 +1481,14 @@ function isTouchDevice() {
 // The splash stays upright while loading, then the menu appears landscape.
 function syncForcedLandscape() {
   if (!isTouchDevice()) return;
+  // Intro screen must NEVER be rotated into forced sideways landscape!
+  if (motionGraphic && motionGraphic.isActive()) {
+    if (document.body.classList.contains('force-landscape')) {
+      document.body.classList.remove('force-landscape');
+      setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+    }
+    return;
+  }
   if (phase === 'loading') return;
   const portrait = window.innerHeight > window.innerWidth;
   const forced = document.body.classList.contains('force-landscape');

@@ -56,7 +56,6 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
   let mgOverlay = document.getElementById('motion-graphic');
   let mgCanvas = document.getElementById('mg-canvas');
   let mgStartBtn = document.getElementById('mg-start-btn');
-  let mgSkipBtn = document.getElementById('mg-skip-btn');
   let mgSoundBtn = document.getElementById('mg-sound-btn');
   let mgSoundLabel = document.getElementById('mg-sound-label');
   let mgStreamingBox = document.getElementById('mg-streaming-status');
@@ -300,7 +299,6 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
 
     mgCanvas = document.getElementById('mg-canvas');
     mgStartBtn = document.getElementById('mg-start-btn');
-    mgSkipBtn = document.getElementById('mg-skip-btn');
     mgSoundBtn = document.getElementById('mg-sound-btn');
     mgSoundLabel = document.getElementById('mg-sound-label');
     mgStreamingBox = document.getElementById('mg-streaming-status');
@@ -327,10 +325,6 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     if (mgStartBtn) {
       mgStartBtn.addEventListener('click', handleStart);
       mgStartBtn.addEventListener('touchend', handleStart, { passive: true });
-    }
-    if (mgSkipBtn) {
-      mgSkipBtn.addEventListener('click', handleSkip);
-      mgSkipBtn.addEventListener('touchend', handleSkip, { passive: true });
     }
     if (mgSoundBtn) {
       mgSoundBtn.addEventListener('click', toggleSound);
@@ -586,22 +580,6 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
       return;
     }
     finishMotionGraphic({ autoStart: true });
-  }
-
-  function handleSkip(e) {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (!isGameReady) {
-      userWantsToStart = true;
-      userWantsAutoStart = false;
-      if (mgBtnLabel) {
-        mgBtnLabel.textContent = '⏳ Entering as soon as ready…';
-      }
-      return;
-    }
-    finishMotionGraphic({ autoStart: false });
   }
 
   function finishMotionGraphic({ autoStart = true } = {}) {
