@@ -24,10 +24,12 @@ import { loadGlbModels, glbHelpText, isMobileDevice } from './glb.js';
 import { buildEntrance, entranceHeightAt, getTempleColliders, ENTRANCE, insideTempleFootprint } from './entrance.js';
 import { prepareWalkableMeshes, prepareWalkableMeshesAsync, sampleWalkFloor } from './walkable.js';
 import { getCachedVisitorCount, fetchCurrentCount, recordGameEntry } from './visitors.js';
+import { createMotionGraphic } from './motion-graphic.js';
 
 const canvas = document.getElementById('scene');
 const hud = createHud();
 const youtubeMusic = createYouTubeMusic();
+const motionGraphic = createMotionGraphic({ youtubeMusic });
 
 let phase = 'loading';
 let mode = 'drone';
@@ -176,9 +178,10 @@ function setSplashProgress(percent, item, { fromCache = false } = {}) {
     if (fromCache) {
       sublabel.textContent = '⚡ Loading from local cache… almost ready!';
     } else {
-      sublabel.textContent = '⏳ 1st time takes ~1 min · Saved for next visit';
+      sublabel.textContent = '⏳ Streaming 3D temple & assets from CDN…';
     }
   }
+  motionGraphic.setProgress(clamped, item, { fromCache });
 }
 
 // Give every swaying devotee a small devotional placard on a 1 m stick to
@@ -1092,14 +1095,41 @@ async function boot() {
   hideSplash();
   // The menu appears in forced landscape on phones (no rotate option).
   syncForcedLandscape();
-  hud.showOverlay(
-    true,
-    'ISKCON Mayapur',
-    menuBody(),
-    'PLAY GAME',
-    { modeChoice: false },
-  );
-  phase = 'menu';
+
+  const hasShotParam = new URLSearchParams(window.location.search).has('shot');
+
+  if (hasShotParam) {
+    hud.showOverlay(
+      true,
+      'ISKCON Mayapur',
+      menuBody(),
+      'PLAY GAME',
+      { modeChoice: false },
+    );
+    phase = 'menu';
+  } else {
+    // Launch dynamic motion graphic sequence with music to showcase Mayapur Treasure Hunt!
+    motionGraphic.start({
+      onComplete: ({ autoStart }) => {
+        syncForcedLandscape();
+        if (autoStart) {
+          enterImmersiveMode();
+          youtubeMusic.play();
+          startPlay('drone', { resume: false });
+          gameSessionStarted = true;
+        } else {
+          hud.showOverlay(
+            true,
+            'ISKCON Mayapur',
+            menuBody(),
+            'PLAY GAME',
+            { modeChoice: false },
+          );
+          phase = 'menu';
+        }
+      },
+    });
+  }
 
   const tx = ENTRANCE.doorX;
   const tz = ENTRANCE.doorZ;
@@ -1562,6 +1592,33 @@ hud.onBoatRide(() => {
     enterBoat();
   }
 });
+
+const replayIntroBtn = document.getElementById('replayIntroBtn');
+if (replayIntroBtn) {
+  replayIntroBtn.addEventListener('click', () => {
+    hud.showOverlay(false);
+    motionGraphic.start({
+      onComplete: ({ autoStart }) => {
+        syncForcedLandscape();
+        if (autoStart) {
+          enterImmersiveMode();
+          youtubeMusic.play();
+          startPlay('drone', { resume: false });
+          gameSessionStarted = true;
+        } else {
+          hud.showOverlay(
+            true,
+            'ISKCON Mayapur',
+            menuBody(),
+            'PLAY GAME',
+            { modeChoice: false },
+          );
+          phase = 'menu';
+        }
+      },
+    });
+  });
+}
 
 document.addEventListener('pointerlockchange', () => {
   if (touchControls && touchControls.isTouchDevice) return;

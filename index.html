@@ -54,6 +54,82 @@
       </div>
     </div>
 
+    <!-- Dynamic Motion Graphic Showcase: Mayapur Treasure Hunt with Music -->
+    <div id="motion-graphic" class="hidden" aria-label="Mayapur Treasure Hunt Intro">
+      <canvas id="mg-canvas"></canvas>
+
+      <div class="mg-top-bar">
+        <button id="mg-sound-btn" class="mg-btn-pill" title="Toggle Kirtan Music" type="button">
+          <span class="mg-sound-icon">🔊</span>
+          <span id="mg-sound-label">Kirtan</span>
+        </button>
+        <button id="mg-skip-btn" class="mg-btn-skip" type="button">Skip Intro ➔</button>
+      </div>
+
+      <div class="mg-stage">
+        <div class="mg-badge">✨ ISKCON MAYAPUR 3D ✨</div>
+
+        <div class="mg-title-wrap">
+          <h1 class="mg-title">
+            <span class="mg-title-sub">SACRED QUEST OF</span>
+            <span class="mg-title-main">MAYAPUR TREASURE HUNT</span>
+          </h1>
+          <div class="mg-title-glow"></div>
+        </div>
+
+        <div class="mg-scenes-container">
+          <div class="mg-scene active" data-scene="0">
+            <div class="mg-scene-icon">🛕</div>
+            <div class="mg-scene-tag">SACRED VEDIC DHAM</div>
+            <h2 class="mg-scene-title">Enter Sri Mayapur Dham</h2>
+            <p class="mg-scene-desc">Walk the sacred holy land, home to the magnificent Temple of the Vedic Planetarium and the golden pastimes of Sri Chaitanya Mahaprabhu.</p>
+          </div>
+          <div class="mg-scene" data-scene="1">
+            <div class="mg-scene-icon">🎁</div>
+            <div class="mg-scene-tag">5 LEVELS · 55 SACRED GIFTS</div>
+            <h2 class="mg-scene-title">The Great Spiritual Hunt</h2>
+            <p class="mg-scene-desc">Seek out 55 hidden spiritual gifts concealed on temple spires, river boats, dancing devotees, and sacred altars. Solve devotional riddles to receive blessings.</p>
+          </div>
+          <div class="mg-scene" data-scene="2">
+            <div class="mg-scene-icon">🦅</div>
+            <div class="mg-scene-tag">AERIAL & RIVER EXPLORATION</div>
+            <h2 class="mg-scene-title">Soar High & Cruise the Ganga</h2>
+            <p class="mg-scene-desc">Take aerial drone control to fly above majestic 110-meter golden domes, or pilot a pilgrim boat across the holy Bhagirathi Ganga waters.</p>
+          </div>
+          <div class="mg-scene" data-scene="3">
+            <div class="mg-scene-icon">🙏</div>
+            <div class="mg-scene-tag">DIVINE DARSHAN & PROTECTION</div>
+            <h2 class="mg-scene-title">Lord Narsimhadeva Darshan</h2>
+            <p class="mg-scene-desc">Step into the grand sanctum sanctorum to offer the auspicious evening lamp arati and receive supreme protection and blessings.</p>
+          </div>
+        </div>
+
+        <div class="mg-indicators">
+          <button class="mg-dot active" data-index="0" type="button" aria-label="Scene 1"></button>
+          <button class="mg-dot" data-index="1" type="button" aria-label="Scene 2"></button>
+          <button class="mg-dot" data-index="2" type="button" aria-label="Scene 3"></button>
+          <button class="mg-dot" data-index="3" type="button" aria-label="Scene 4"></button>
+        </div>
+
+        <div class="mg-visualizer active" aria-hidden="true">
+          <span class="mg-bar"></span>
+          <span class="mg-bar"></span>
+          <span class="mg-bar"></span>
+          <span class="mg-bar"></span>
+          <span class="mg-bar"></span>
+          <span class="mg-bar"></span>
+          <span class="mg-bar"></span>
+        </div>
+
+        <div class="mg-actions">
+          <button id="mg-start-btn" class="mg-btn-start" type="button">
+            <span class="mg-btn-glow"></span>
+            <span class="mg-btn-text">🎁 START TREASURE HUNT</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div id="hud" class="hidden">
       <div id="stats" class="panel">-- fps · alt -- m</div>
       <div id="visitor-counter" class="panel">🛕 <span id="visitor-count">1,001</span> Pilgrims</div>
@@ -119,6 +195,7 @@
         <div class="mode-row">
           <button id="startBtn">PLAY GAME</button>
           <button id="droneBtn" class="secondary hidden">Exit</button>
+          <button id="replayIntroBtn" class="secondary" type="button" title="Watch Motion Graphic Intro">🎬 Intro Show</button>
         </div>
       </div>
     </div>
