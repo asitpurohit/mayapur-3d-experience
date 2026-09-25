@@ -1336,13 +1336,12 @@ function pause() {
   const body =
     `<p style="margin-bottom: 8px; font-weight: 700; color: #ffe899;">🎁 Level ${level} · ${found}/11 Gifts Found</p>` +
     (mode === 'boat'
-      ? '<p>The boat waits on the Ganga. Tap Resume to keep riding, or Exit to Menu to return.</p>'
-      : '<p>The drone is hovering. Tap Resume to keep flying, or Exit to Menu to return.</p>');
-  hud.showOverlay(true, 'Paused', body, 'Resume', { modeChoice: true, droneButtonText: 'Exit to Menu' });
+      ? '<p>The boat waits on the Ganga. Tap Resume to keep riding, or Exit to watch the intro show.</p>'
+      : '<p>The drone is hovering. Tap Resume to keep flying, or Exit to watch the intro show.</p>');
+  hud.showOverlay(true, 'Paused', body, 'Resume', { modeChoice: true, droneButtonText: 'Exit' });
 }
 
 function returnToMenu() {
-  phase = 'menu';
   needsRender = true;
   player.state.enabled = false;
   // Keep the drone & boat exactly where they are; do not deactivate or reset to spawn.
@@ -1354,23 +1353,31 @@ function returnToMenu() {
   // Do NOT wipe game progress or reset levels/gifts!
   if (arati) arati.stop();
   if (blessing) blessing.stop();
-  // Leaving to menu pauses audio
-  youtubeMusic.pause();
-  suspendAudio();
-  musicNeedsNewTrack = true;
   exitImmersiveMode();
   hud.showHud(false);
-  hud.setButtonEnabled(false);
-  hud.showOverlay(
-    true,
-    'ISKCON Mayapur',
-    menuBody(),
-    'PLAY GAME',
-    { modeChoice: false },
-  );
-  setTimeout(() => {
-    hud.setButtonEnabled(true);
-  }, 400);
+  hud.showOverlay(false);
+
+  // Exit takes directly to the intro motion graphic
+  motionGraphic.start({
+    onComplete: ({ autoStart }) => {
+      syncForcedLandscape();
+      if (autoStart) {
+        enterImmersiveMode();
+        youtubeMusic.play();
+        const shouldResume = gameSessionStarted && drone.state.started;
+        startPlay(mode || 'drone', { resume: shouldResume });
+      } else {
+        hud.showOverlay(
+          true,
+          'ISKCON Mayapur',
+          menuBody(),
+          'PLAY GAME',
+          { modeChoice: false },
+        );
+        phase = 'menu';
+      }
+    },
+  });
 }
 
 function returnToEntrance() {
@@ -1602,32 +1609,6 @@ hud.onBoatRide(() => {
   }
 });
 
-const replayIntroBtn = document.getElementById('replayIntroBtn');
-if (replayIntroBtn) {
-  replayIntroBtn.addEventListener('click', () => {
-    hud.showOverlay(false);
-    motionGraphic.start({
-      onComplete: ({ autoStart }) => {
-        syncForcedLandscape();
-        if (autoStart) {
-          enterImmersiveMode();
-          youtubeMusic.play();
-          startPlay('drone', { resume: false });
-          gameSessionStarted = true;
-        } else {
-          hud.showOverlay(
-            true,
-            'ISKCON Mayapur',
-            menuBody(),
-            'PLAY GAME',
-            { modeChoice: false },
-          );
-          phase = 'menu';
-        }
-      },
-    });
-  });
-}
 
 document.addEventListener('pointerlockchange', () => {
   if (touchControls && touchControls.isTouchDevice) return;
