@@ -85,11 +85,12 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
   // --- Dynamic Loading FX (Phase 1) ---
 
   function initSplashCanvas() {
-    if (!splashCanvas) {
+    splashCanvas = document.getElementById('splash-particles');
+    if (!splashCanvas && splashEl) {
       splashCanvas = document.createElement('canvas');
       splashCanvas.id = 'splash-particles';
       splashCanvas.className = 'splash-fx-canvas';
-      if (splashEl) splashEl.insertBefore(splashCanvas, splashEl.firstChild);
+      splashEl.appendChild(splashCanvas);
     }
     if (splashCanvas) {
       splashCtx = splashCanvas.getContext('2d');
@@ -97,13 +98,29 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
       window.addEventListener('resize', resizeSplashCanvas);
     }
 
-    // Insert Dynamic Lore Ticker
+    // Insert Dynamic Lore Ticker if not already in DOM
     if (splashProgressEl && !document.getElementById('splash-lore')) {
       const loreEl = document.createElement('div');
       loreEl.id = 'splash-lore';
       loreEl.className = 'splash-lore-ticker';
       loreEl.textContent = LORE_TIPS[0];
       splashProgressEl.insertBefore(loreEl, splashProgressEl.firstChild);
+    }
+
+    // Tap to play kirtan while waiting for large downloads
+    if (splashEl) {
+      splashEl.addEventListener(
+        'pointerdown',
+        () => {
+          if (youtubeMusic && !isSoundActive) {
+            triggerAudio();
+            if (splashSublabelEl) {
+              splashSublabelEl.textContent = '🔊 Devotional Kirtan playing · Loading 3D temple…';
+            }
+          }
+        },
+        { once: true },
+      );
     }
 
     createSplashParticles();
@@ -119,15 +136,15 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
 
   function createSplashParticles() {
     splashParticles = [];
-    const count = Math.min(50, Math.floor((window.innerWidth * window.innerHeight) / 22000));
+    const count = Math.min(65, Math.floor((window.innerWidth * window.innerHeight) / 18000));
     for (let i = 0; i < count; i++) {
       splashParticles.push({
         x: Math.random() * window.innerWidth,
         y: Math.random() * window.innerHeight,
-        r: Math.random() * 2.5 + 0.8,
+        r: Math.random() * 2.8 + 0.8,
         speedY: Math.random() * 0.45 + 0.15,
-        speedX: (Math.random() - 0.5) * 0.3,
-        alpha: Math.random() * 0.6 + 0.2,
+        speedX: (Math.random() - 0.5) * 0.35,
+        alpha: Math.random() * 0.65 + 0.25,
         phase: Math.random() * Math.PI * 2,
       });
     }
@@ -137,6 +154,7 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     if (splashAnimId) return;
 
     let lastTime = performance.now();
+    let mandalaAngle = 0;
     const loop = (now) => {
       const dt = Math.min(0.1, (now - lastTime) / 1000);
       lastTime = now;
@@ -155,11 +173,32 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
         const cx = splashCanvas.width * 0.5;
         const cy = splashCanvas.height * 0.35;
         const grad = splashCtx.createRadialGradient(cx, cy, 20, cx, cy, splashCanvas.height * 0.6);
-        grad.addColorStop(0, 'rgba(255, 215, 0, 0.08)');
+        grad.addColorStop(0, 'rgba(255, 215, 0, 0.09)');
         grad.addColorStop(0.5, 'rgba(255, 170, 0, 0.03)');
         grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         splashCtx.fillStyle = grad;
         splashCtx.fillRect(0, 0, splashCanvas.width, splashCanvas.height);
+
+        // Draw subtle rotating sacred geometry motif behind cover artwork
+        mandalaAngle += 0.001;
+        splashCtx.save();
+        splashCtx.translate(cx, cy);
+        splashCtx.rotate(mandalaAngle);
+        splashCtx.strokeStyle = 'rgba(255, 215, 0, 0.08)';
+        splashCtx.lineWidth = 1;
+        splashCtx.beginPath();
+        const rad = Math.min(cx, cy) * 0.55;
+        splashCtx.arc(0, 0, rad, 0, Math.PI * 2);
+        splashCtx.stroke();
+        const rays = 8;
+        for (let i = 0; i < rays; i++) {
+          const a = (i * 2 * Math.PI) / rays;
+          splashCtx.beginPath();
+          splashCtx.moveTo(Math.cos(a) * (rad * 0.3), Math.sin(a) * (rad * 0.3));
+          splashCtx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+          splashCtx.stroke();
+        }
+        splashCtx.restore();
 
         // Draw floating particles
         for (const p of splashParticles) {

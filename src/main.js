@@ -31,6 +31,15 @@ const hud = createHud();
 const youtubeMusic = createYouTubeMusic();
 const motionGraphic = createMotionGraphic({ youtubeMusic });
 
+if (new URLSearchParams(window.location.search).has('intro')) {
+  hideSplash();
+  motionGraphic.start({
+    onComplete: () => {
+      window.location.href = window.location.pathname;
+    },
+  });
+}
+
 let phase = 'loading';
 let mode = 'drone';
 let world = null;
