@@ -42,7 +42,7 @@
   <body>
     <canvas id="scene"></canvas>
 
-    <div id="splash">
+    <div id="splash" class="hidden">
       <picture>
         <source media="(orientation: portrait)" srcset="/images/splash-portrait.webp?v=6" />
         <img src="/images/splash.webp" alt="Mayapur Treasure Hunt" />
@@ -61,7 +61,7 @@
     </div>
 
     <!-- Dynamic Motion Graphic Showcase: Mayapur Treasure Hunt with Music -->
-    <div id="motion-graphic" class="hidden" aria-label="Mayapur Treasure Hunt Intro">
+    <div id="motion-graphic" aria-label="Mayapur Treasure Hunt Intro">
       <canvas id="mg-canvas"></canvas>
 
       <div class="mg-top-bar">
@@ -127,12 +127,22 @@
           <span class="mg-bar"></span>
         </div>
 
+        <div id="mg-streaming-status" class="mg-streaming-box">
+          <div class="mg-stream-bar-bg">
+            <div id="mg-stream-bar" class="mg-stream-bar"></div>
+            <div class="mg-stream-bar-glow"></div>
+          </div>
+          <div id="mg-stream-label" class="mg-stream-label">⚡ Streaming 3D Temple & Lord Narsimhadev… 0%</div>
+        </div>
+
         <div class="mg-actions">
-          <button id="mg-start-btn" class="mg-btn-start" type="button">
+          <button id="mg-start-btn" class="mg-btn-start waiting" type="button">
             <span class="mg-btn-glow"></span>
-            <span class="mg-btn-text">🎁 START TREASURE HUNT</span>
+            <span id="mg-btn-label" class="mg-btn-text">⏳ PREPARING DHAM…</span>
           </button>
         </div>
+      </div>
+    </div>
       </div>
     </div>
 

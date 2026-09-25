@@ -879,10 +879,36 @@ async function loadDeferredModels(scene, glbs) {
 }
 
 async function boot() {
-  // No popup while loading: the cover art stays visible with just a bar.
+  // No popup while loading: motion graphic starts instantly with 0s wait time
   hud.showOverlay(false);
   hud.setButtonEnabled(false);
   setSplashProgress(0, null);
+
+  const hasShotParam = new URLSearchParams(window.location.search).has('shot');
+
+  if (!hasShotParam) {
+    // Launch dynamic motion graphic immediately! Zero second wait time for user.
+    motionGraphic.start({
+      onComplete: ({ autoStart }) => {
+        syncForcedLandscape();
+        if (autoStart) {
+          enterImmersiveMode();
+          youtubeMusic.play();
+          startPlay('drone', { resume: false });
+          gameSessionStarted = true;
+        } else {
+          hud.showOverlay(
+            true,
+            'ISKCON Mayapur',
+            menuBody(),
+            'PLAY GAME',
+            { modeChoice: false },
+          );
+          phase = 'menu';
+        }
+      },
+    });
+  }
 
   const renderer = createRenderer();
   const scene = new THREE.Scene();
@@ -1108,11 +1134,12 @@ async function boot() {
     }
   }
 
+  // Signal to the motion graphic that initial models & shaders are ready!
+  motionGraphic.setReady();
+
   hideSplash();
   // The menu appears in forced landscape on phones (no rotate option).
   syncForcedLandscape();
-
-  const hasShotParam = new URLSearchParams(window.location.search).has('shot');
 
   if (hasShotParam) {
     hud.showOverlay(
@@ -1123,28 +1150,6 @@ async function boot() {
       { modeChoice: false },
     );
     phase = 'menu';
-  } else {
-    // Launch dynamic motion graphic sequence with music to showcase Mayapur Treasure Hunt!
-    motionGraphic.start({
-      onComplete: ({ autoStart }) => {
-        syncForcedLandscape();
-        if (autoStart) {
-          enterImmersiveMode();
-          youtubeMusic.play();
-          startPlay('drone', { resume: false });
-          gameSessionStarted = true;
-        } else {
-          hud.showOverlay(
-            true,
-            'ISKCON Mayapur',
-            menuBody(),
-            'PLAY GAME',
-            { modeChoice: false },
-          );
-          phase = 'menu';
-        }
-      },
-    });
   }
 
   const tx = ENTRANCE.doorX;

@@ -59,6 +59,10 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
   let mgSkipBtn = document.getElementById('mg-skip-btn');
   let mgSoundBtn = document.getElementById('mg-sound-btn');
   let mgSoundLabel = document.getElementById('mg-sound-label');
+  let mgStreamingBox = document.getElementById('mg-streaming-status');
+  let mgStreamBar = document.getElementById('mg-stream-bar');
+  let mgStreamLabel = document.getElementById('mg-stream-label');
+  let mgBtnLabel = document.getElementById('mg-btn-label');
 
   // Loading Particles Canvas
   let splashCanvas = document.getElementById('splash-particles');
@@ -80,7 +84,11 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
   let sceneTimer = null;
   let isSoundActive = false;
   let onCompleteCallback = null;
-  let isActive = false;
+  let isActive = true;
+  let isGameReady = false;
+  let userWantsToStart = false;
+  let userWantsAutoStart = true;
+  let listenersAttached = false;
 
   // --- Dynamic Loading FX (Phase 1) ---
 
@@ -241,17 +249,31 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     if (splashLabelEl) {
       splashLabelEl.textContent = `Loading Mayapur… ${Math.round(clamped)}%`;
     }
+    if (mgStreamBar) {
+      mgStreamBar.style.width = `${clamped}%`;
+    }
+    if (mgStreamLabel && !isGameReady) {
+      mgStreamLabel.textContent = `⚡ Streaming 3D Temple & Lord Narsimhadev… ${Math.round(clamped)}%`;
+    }
+    if (mgBtnLabel && !isGameReady && !userWantsToStart) {
+      mgBtnLabel.textContent = `⏳ PREPARING DHAM… ${Math.round(clamped)}%`;
+    }
   }
 
   function setProgress(percent, item, { fromCache = false } = {}) {
     targetProgress = Math.max(0, Math.min(100, percent || 0));
-    if (splashSublabelEl) {
-      if (fromCache) {
-        splashSublabelEl.textContent = '⚡ Loading from local cache… almost ready!';
-      } else {
-        splashSublabelEl.textContent = '⚡ Streaming Temple & Lord Narsimhadev first… game starts soon!';
+    if (fromCache) {
+      if (splashSublabelEl) splashSublabelEl.textContent = '⚡ Loading from local cache… almost ready!';
+      if (mgStreamLabel && !isGameReady) {
+        mgStreamLabel.textContent = `⚡ Loading 3D Temple from cache… ${Math.round(targetProgress)}%`;
+      }
+    } else {
+      if (splashSublabelEl) splashSublabelEl.textContent = '⚡ Streaming Temple & Lord Narsimhadev first… game starts soon!';
+      if (mgStreamLabel && !isGameReady) {
+        mgStreamLabel.textContent = `⚡ Streaming 3D Temple & Lord Narsimhadev… ${Math.round(targetProgress)}%`;
       }
     }
+    renderProgress();
   }
 
   function startLoreCycle() {
@@ -281,12 +303,25 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     mgSkipBtn = document.getElementById('mg-skip-btn');
     mgSoundBtn = document.getElementById('mg-sound-btn');
     mgSoundLabel = document.getElementById('mg-sound-label');
+    mgStreamingBox = document.getElementById('mg-streaming-status');
+    mgStreamBar = document.getElementById('mg-stream-bar');
+    mgStreamLabel = document.getElementById('mg-stream-label');
+    mgBtnLabel = document.getElementById('mg-btn-label');
 
     if (mgCanvas) {
       mgCtx = mgCanvas.getContext('2d');
       resizeMgCanvas();
       window.addEventListener('resize', resizeMgCanvas);
     }
+
+    if (isGameReady) {
+      setReady();
+    } else {
+      renderProgress();
+    }
+
+    if (listenersAttached) return;
+    listenersAttached = true;
 
     // Attach listeners
     if (mgStartBtn) {
@@ -352,7 +387,18 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     if (mgAnimId) return;
 
     let angle = 0;
+    let lastTime = performance.now();
     const loop = (now) => {
+      const dt = Math.min(0.1, (now - lastTime) / 1000);
+      lastTime = now;
+
+      // Smooth progress interpolation
+      if (currentProgress < targetProgress) {
+        currentProgress += (targetProgress - currentProgress) * Math.min(1, dt * 5);
+        if (Math.abs(targetProgress - currentProgress) < 0.2) currentProgress = targetProgress;
+        renderProgress();
+      }
+
       if (!mgCtx || !mgCanvas) return;
       mgCtx.clearRect(0, 0, mgCanvas.width, mgCanvas.height);
 
@@ -501,10 +547,43 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     }
   }
 
+  function setReady() {
+    isGameReady = true;
+    targetProgress = 100;
+    currentProgress = 100;
+    if (mgStreamBar) mgStreamBar.style.width = '100%';
+    if (mgStreamLabel) {
+      mgStreamLabel.textContent = '✨ 3D Temple & Lord Narsimhadev Ready!';
+    }
+    if (mgStreamingBox) {
+      mgStreamingBox.classList.add('ready');
+    }
+    if (mgStartBtn) {
+      mgStartBtn.classList.remove('waiting');
+      mgStartBtn.classList.add('ready');
+    }
+    if (mgBtnLabel) {
+      mgBtnLabel.textContent = '🎁 ENTER MAYAPUR DHAM';
+    }
+
+    if (userWantsToStart) {
+      userWantsToStart = false;
+      finishMotionGraphic({ autoStart: userWantsAutoStart });
+    }
+  }
+
   function handleStart(e) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
+    }
+    if (!isGameReady) {
+      userWantsToStart = true;
+      userWantsAutoStart = true;
+      if (mgBtnLabel) {
+        mgBtnLabel.textContent = '⏳ Entering as soon as ready…';
+      }
+      return;
     }
     finishMotionGraphic({ autoStart: true });
   }
@@ -513,6 +592,14 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
+    }
+    if (!isGameReady) {
+      userWantsToStart = true;
+      userWantsAutoStart = false;
+      if (mgBtnLabel) {
+        mgBtnLabel.textContent = '⏳ Entering as soon as ready…';
+      }
+      return;
     }
     finishMotionGraphic({ autoStart: false });
   }
@@ -545,6 +632,7 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
   function start({ onComplete } = {}) {
     isActive = true;
     onCompleteCallback = onComplete;
+    userWantsToStart = false;
 
     // Ensure elements are ready
     initMotionGraphicElements();
@@ -562,6 +650,10 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
       setTimeout(() => mgOverlay.classList.remove('fade-in'), 600);
     }
 
+    if (isGameReady) {
+      setReady();
+    }
+
     // Initialize scenes and particles
     showScene(0);
     startSceneTimer();
@@ -572,11 +664,16 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     triggerAudio();
   }
 
-  // Initialize loading FX immediately when module is loaded
-  initSplashCanvas();
+  // Initialize elements and start preview immediately
+  initMotionGraphicElements();
+  createMgParticles();
+  startMgCanvasLoop();
+  startSceneTimer();
 
   return {
     setProgress,
+    setReady,
+    isReady: () => isGameReady,
     start,
     isActive: () => isActive,
   };
