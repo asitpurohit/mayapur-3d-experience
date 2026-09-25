@@ -242,6 +242,9 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     }
   }
 
+  let isDeitiesReady = false;
+  let streamStatusText = '';
+
   function renderProgress() {
     const clamped = Math.max(0, Math.min(100, currentProgress));
     if (splashBarEl) splashBarEl.style.width = `${clamped}%`;
@@ -251,26 +254,27 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     if (mgStreamBar) {
       mgStreamBar.style.width = `${clamped}%`;
     }
-    if (mgStreamLabel && !isGameReady) {
-      mgStreamLabel.textContent = `⚡ Streaming 3D Temple & Lord Narsimhadev… ${Math.round(clamped)}%`;
+    if (mgStreamLabel && !isDeitiesReady) {
+      mgStreamLabel.textContent = streamStatusText || `⚡ Streaming 3D Temple & Lord Narsimhadev… ${Math.round(clamped)}%`;
     }
     if (mgBtnLabel && !isGameReady && !userWantsToStart) {
       mgBtnLabel.textContent = `⏳ PREPARING DHAM… ${Math.round(clamped)}%`;
     }
   }
 
-  function setProgress(percent, item, { fromCache = false } = {}) {
+  function setProgress(percent, displayName, { fromCache = false } = {}) {
     targetProgress = Math.max(0, Math.min(100, percent || 0));
+    const name = displayName || '3D Models';
     if (fromCache) {
-      if (splashSublabelEl) splashSublabelEl.textContent = '⚡ Loading from local cache… almost ready!';
-      if (mgStreamLabel && !isGameReady) {
-        mgStreamLabel.textContent = `⚡ Loading 3D Temple from cache… ${Math.round(targetProgress)}%`;
-      }
+      streamStatusText = `⚡ Loading ${name} from cache… ${Math.round(targetProgress)}%`;
     } else {
-      if (splashSublabelEl) splashSublabelEl.textContent = '⚡ Streaming Temple & Lord Narsimhadev first… game starts soon!';
-      if (mgStreamLabel && !isGameReady) {
-        mgStreamLabel.textContent = `⚡ Streaming 3D Temple & Lord Narsimhadev… ${Math.round(targetProgress)}%`;
-      }
+      streamStatusText = `⚡ Streaming ${name}… ${Math.round(targetProgress)}%`;
+    }
+    if (splashSublabelEl) {
+      splashSublabelEl.textContent = streamStatusText;
+    }
+    if (mgStreamLabel && !isDeitiesReady) {
+      mgStreamLabel.textContent = streamStatusText;
     }
     renderProgress();
   }
@@ -541,17 +545,22 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
     }
   }
 
-  function setReady() {
-    isGameReady = true;
+  function markDeitiesReady() {
+    isDeitiesReady = true;
     targetProgress = 100;
     currentProgress = 100;
+    streamStatusText = '✨ 3D Temple & Lord Narsimhadev Ready!';
     if (mgStreamBar) mgStreamBar.style.width = '100%';
     if (mgStreamLabel) {
-      mgStreamLabel.textContent = '✨ 3D Temple & Lord Narsimhadev Ready!';
+      mgStreamLabel.textContent = streamStatusText;
     }
     if (mgStreamingBox) {
       mgStreamingBox.classList.add('ready');
     }
+  }
+
+  function setReady() {
+    isGameReady = true;
     if (mgStartBtn) {
       mgStartBtn.classList.remove('waiting');
       mgStartBtn.classList.add('ready');
@@ -575,7 +584,7 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
       userWantsToStart = true;
       userWantsAutoStart = true;
       if (mgBtnLabel) {
-        mgBtnLabel.textContent = '⏳ Entering as soon as ready…';
+        mgBtnLabel.textContent = '⏳ Entering Mayapur…';
       }
       return;
     }
@@ -651,6 +660,7 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
   return {
     setProgress,
     setReady,
+    markDeitiesReady,
     isReady: () => isGameReady,
     start,
     isActive: () => isActive,

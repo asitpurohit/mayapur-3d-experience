@@ -173,24 +173,36 @@ function hideSplash() {
   if (splash) splash.classList.add('hidden');
 }
 
+const FRIENDLY_MODEL_NAMES = {
+  'mayapur-temple': '3D Temple',
+  'narshima': 'Lord Narsimhadev',
+  'guru': 'Srila Prabhupada & Devotees',
+  'avatar': 'Pilgrim Avatar',
+  'terrain-figure': 'Sankirtan Dancers',
+  'terrain-orbit': 'Rath Yatra Chariot',
+  'kirtan-followers': 'Kirtan Procession',
+  'standin-temple': 'Sri Krishna Deity',
+};
+
 // Loading bar drawn over the cover art (no popup card while loading).
 function setSplashProgress(percent, item, { fromCache = false } = {}) {
   const clamped = Math.max(0, Math.min(100, percent || 0));
+  const displayName = FRIENDLY_MODEL_NAMES[item] || (item ? item.replace(/[-_]/g, ' ') : 'Mayapur 3D Models');
   const bar = document.getElementById('splash-bar');
   const label = document.getElementById('splash-label');
   const sublabel = document.getElementById('splash-sublabel');
   if (bar) bar.style.width = `${clamped}%`;
   if (label) {
-    label.textContent = `Loading Mayapur… ${Math.round(clamped)}%`;
+    label.textContent = `Streaming ${displayName}… ${Math.round(clamped)}%`;
   }
   if (sublabel) {
     if (fromCache) {
-      sublabel.textContent = '⚡ Loading from local cache… almost ready!';
+      sublabel.textContent = `⚡ Loading ${displayName} from local cache…`;
     } else {
-      sublabel.textContent = '⚡ Streaming Temple & Lord Narsimhadev first… game starts soon!';
+      sublabel.textContent = `⚡ Streaming ${displayName} in background…`;
     }
   }
-  motionGraphic.setProgress(clamped, item, { fromCache });
+  motionGraphic.setProgress(clamped, displayName, { fromCache });
 }
 
 // Give every swaying devotee a small devotional placard on a 1 m stick to
@@ -801,11 +813,13 @@ if (avatar) {
 }
 
 // Progressive streaming: stream the essential models (temple and Lord Narsimhadev)
-// first to start the game fast. Remaining models stream in during gameplay.
+// first in the background. Remaining models follow during gameplay.
 const PROGRESSIVE_LOADING = true;
 
 // Models loaded in the background after the game starts, in priority order.
 const DEFERRED_MODEL_GROUPS = [
+  ['mayapur-temple'],
+  ['narshima'],
   ['guru'],
   ['avatar'],
   ['terrain-figure'],
@@ -825,7 +839,9 @@ async function loadDeferredModels(scene, glbs) {
         groundHeightAt,
         names,
         onLog: (msg) => console.info('[glb]', msg),
-        onProgress: () => {},
+        onProgress: ({ item, percent, fromCache }) => {
+          setSplashProgress(percent, item, { fromCache });
+        },
       });
       if (!loaded.length) continue;
       glbs.push(...loaded);
@@ -836,7 +852,7 @@ async function loadDeferredModels(scene, glbs) {
         player.state.thirdPerson = true;
       }
 
-      // The temple usually arrives here (streamed after first paint). Build
+      // The temple arrives here (streamed in the background). Build
       // its walkable collision in small slices so phones never freeze.
       const lateTemple = loaded.find((o) => o.name === 'mayapur-temple');
       if (lateTemple) {
@@ -844,8 +860,29 @@ async function loadDeferredModels(scene, glbs) {
           const meshes = await prepareWalkableMeshesAsync(lateTemple);
           walkMeshes.push(...meshes);
           console.info(`[walkable] +${meshes.length} streamed temple mesh(es) with BVH`);
+          if (game) {
+            const box = new THREE.Box3().setFromObject(lateTemple);
+            if (!box.isEmpty()) {
+              game.temple = {
+                minX: box.min.x,
+                maxX: box.max.x,
+                minY: box.min.y,
+                minZ: box.min.z,
+                maxZ: box.max.z,
+                maxY: box.max.y,
+              };
+            }
+          }
         } catch (err) {
           console.warn('[walkable] deferred BVH failed:', err);
+        }
+      }
+
+      if (names.includes('narshima') || names.includes('mayapur-temple')) {
+        const hasTemple = glbs.some((o) => o.name === 'mayapur-temple');
+        const hasNar = glbs.some((o) => o.name === 'narshima');
+        if (hasTemple && hasNar) {
+          motionGraphic.markDeitiesReady();
         }
       }
 
@@ -958,28 +995,10 @@ async function boot() {
   scene.add(city);
 
   const liteMode = new URLSearchParams(window.location.search).has('lite');
-  const glbNotes = [];
-  const glbs = liteMode
-    ? []
-    : await loadGlbModels({
-        scene,
-        groundHeightAt,
-        names: PROGRESSIVE_LOADING ? ['mayapur-temple', 'narshima'] : null,
-        onLog: (msg) => glbNotes.push(msg),
-        onProgress: ({ item, percent, fromCache }) => {
-          // Size and device-cache details stay silent; caching happens behind
-          // the scenes and only the splash loading bar is updated.
-          setSplashProgress(percent, item, { fromCache });
-        },
-      });
-  if (liteMode) console.info('[glb] lite mode — model loading skipped');
-  else if (glbNotes.length) console.info('[glb]', glbNotes.join('; '));
-  else console.info('[glb]', glbHelpText());
-
+  const glbs = [];
   wireGlbModels(scene, glbs);
-  const templeRoot = glbs.find((o) => o.name === 'mayapur-temple');
-  walkMeshes.push(...prepareWalkableMeshes(templeRoot));
-  console.info(`[walkable] ${walkMeshes.length} temple mesh(es) with BVH`);
+  if (liteMode) console.info('[glb] lite mode — model loading skipped');
+  else console.info('[glb] models streaming in background');
 
   const groundHeight = (x, z, feetY = ENTRANCE.temple.minY) => {
     const base = entranceHeightAt(x, z);

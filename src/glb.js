@@ -10,7 +10,9 @@ const BASE = '/models';
 // available).
 if (typeof Worker !== 'undefined' && typeof MeshoptDecoder.useWorkers === 'function') {
   try {
-    MeshoptDecoder.useWorkers(2);
+    MeshoptDecoder.useWorkers(2).catch((err) => {
+      console.warn('[glb] meshopt worker pool failed, fallback to main thread:', err);
+    });
   } catch (err) {
     console.warn('[glb] meshopt workers unavailable, decoding on main thread:', err);
   }
@@ -259,7 +261,7 @@ if (typeof caches !== 'undefined') {
 // Files above this size are not written to Cache Storage to prevent blowing quotas.
 // Set to 80MB so mayapur-temple (~60MB) can be safely cached on mobile and desktop.
 const BIG_FILE_BYTES = 80 * 1024 * 1024;
-const STALL_TIMEOUT_MS = 45000;
+const STALL_TIMEOUT_MS = 120000;
 const DOWNLOAD_ATTEMPTS = 3;
 
 async function fetchBlobWithCache(url, onProgress, opts = {}) {
@@ -273,8 +275,8 @@ async function fetchBlobWithCache(url, onProgress, opts = {}) {
       if (matched) {
         const blob = await matched.blob();
         // If the cached blob is truncated or corrupted, purge it and fetch fresh
-        if (expectedBytes > 0 && blob.size < expectedBytes * 0.95) {
-          console.warn(`[cache] Incomplete blob in cache for ${url} (${blob.size}/${expectedBytes} bytes). Purging.`);
+        if ((expectedBytes > 0 && blob.size < expectedBytes * 0.95) || blob.size < 10240) {
+          console.warn(`[cache] Incomplete or corrupted blob in cache for ${url} (${blob.size} bytes). Purging.`);
           await cache.delete(url, { ignoreSearch: true });
         } else if (blob.size > 0) {
           onProgress?.({ loaded: blob.size, total: blob.size, cached: true });
@@ -347,7 +349,7 @@ async function downloadAttempt(url, onProgress, { cacheBigFiles, expectedBytes =
 
     // 3. Store the completed file for instant repeat visits. Fire-and-forget
     // so a slow/oversize put can never stall the loading pipeline.
-    if (typeof caches !== 'undefined' && blob && blob.size > 0) {
+    if (typeof caches !== 'undefined' && blob && blob.size > 10240) {
       const tooBig = blob.size > BIG_FILE_BYTES;
       if (cacheBigFiles || !tooBig) {
         caches
@@ -488,14 +490,10 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
     let blob = result.blob;
     let gltf = null;
 
-    // First parse attempt
+    // First parse attempt directly from arrayBuffer (no blob URLs or secondary fetches)
     try {
-      const blobUrl = URL.createObjectURL(blob);
-      try {
-        gltf = await loader.loadAsync(blobUrl);
-      } finally {
-        URL.revokeObjectURL(blobUrl);
-      }
+      const arrayBuffer = await blob.arrayBuffer();
+      gltf = await loader.parseAsync(arrayBuffer, '');
     } catch (parseErr) {
       console.warn(`[glb] Parse error on ${file}:`, parseErr);
       // If the corrupted blob came from cache, delete it immediately and retry fresh from network!
@@ -513,12 +511,8 @@ export async function loadGlbModels({ scene, groundHeightAt, onLog = () => {}, o
             reportProgress(name);
           }, { cacheBigFiles, expectedBytes: slot.bytes || 0 });
           blob = result.blob;
-          const freshBlobUrl = URL.createObjectURL(blob);
-          try {
-            gltf = await loader.loadAsync(freshBlobUrl);
-          } finally {
-            URL.revokeObjectURL(freshBlobUrl);
-          }
+          const freshArrayBuffer = await blob.arrayBuffer();
+          gltf = await loader.parseAsync(freshArrayBuffer, '');
         } catch (retryErr) {
           console.warn(`[glb] Network retry failed for ${file}:`, retryErr);
         }
