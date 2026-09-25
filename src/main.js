@@ -60,9 +60,6 @@ function menuBody() {
     return `<div class="gift-hunt-banner">
         <div class="gift-hunt-title">🎁 Level ${level} in Progress · ${foundCount}/11 Gifts</div>
         <div class="gift-hunt-desc">Your journey is saved! Tap PLAY GAME to return directly to where you were exploring.</div>
-      </div>
-      <div style="margin-top: 14px; text-align: center;">
-        <button id="menu-restart-btn" type="button" style="background: rgba(255, 60, 60, 0.15); border: 1px solid rgba(255, 120, 120, 0.4); border-radius: 999px; color: #ffcccc; font-size: 12px; font-weight: 600; cursor: pointer; padding: 6px 16px;">↺ Reset Progress & Restart Level 1</button>
       </div>`;
   }
   return `<div class="gift-hunt-banner">
@@ -1102,7 +1099,6 @@ async function boot() {
     'PLAY GAME',
     { modeChoice: false },
   );
-  bindMenuRestartButton();
   phase = 'menu';
 
   const tx = ENTRANCE.doorX;
@@ -1333,7 +1329,6 @@ function returnToMenu() {
     'PLAY GAME',
     { modeChoice: false },
   );
-  bindMenuRestartButton();
   setTimeout(() => {
     hud.setButtonEnabled(true);
   }, 400);
@@ -1341,26 +1336,6 @@ function returnToMenu() {
 
 function returnToEntrance() {
   returnToMenu();
-}
-
-function bindMenuRestartButton() {
-  setTimeout(() => {
-    const btn = document.getElementById('menu-restart-btn');
-    if (!btn) return;
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      if (confirm('Start over from Level 1? All current progress will be reset.')) {
-        if (game) game.reset();
-        player.reset();
-        drone.deactivate();
-        drone.state.started = false;
-        gameSessionStarted = false;
-        mode = 'drone';
-        hud.showOverlay(true, 'ISKCON Mayapur', menuBody(), 'PLAY GAME', { modeChoice: false });
-        bindMenuRestartButton();
-      }
-    };
-  }, 60);
 }
 
 function enterBoat() {
