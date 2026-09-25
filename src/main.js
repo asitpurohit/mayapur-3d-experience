@@ -1325,7 +1325,7 @@ function returnToMenu() {
   musicNeedsNewTrack = true;
   exitImmersiveMode();
   hud.showHud(false);
-  hud.setButtonEnabled(true);
+  hud.setButtonEnabled(false);
   hud.showOverlay(
     true,
     'ISKCON Mayapur',
@@ -1334,6 +1334,9 @@ function returnToMenu() {
     { modeChoice: false },
   );
   bindMenuRestartButton();
+  setTimeout(() => {
+    hud.setButtonEnabled(true);
+  }, 400);
 }
 
 function returnToEntrance() {
@@ -1569,16 +1572,6 @@ hud.onStart(() => {
 hud.onDrone(() => {
   if (phase === 'paused') {
     returnToMenu();
-  } else if (phase === 'menu') {
-    enterImmersiveMode();
-    if (musicNeedsNewTrack) {
-      musicNeedsNewTrack = false;
-      youtubeMusic.requestNewTrack();
-    }
-    youtubeMusic.play();
-    const shouldResume = gameSessionStarted && drone.state.started;
-    startPlay(mode || 'drone', { resume: shouldResume });
-    gameSessionStarted = true;
   }
 });
 
@@ -1607,7 +1600,7 @@ document.addEventListener('pointerlockchange', () => {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) pause();
+  if (document.hidden && phase === 'playing') pause();
 });
 
 let last = performance.now();
@@ -1809,12 +1802,6 @@ function frame(now) {
   }
 }
 
-// Automatically pause rendering when tab is in background or phone is locked
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden && phase === 'playing') {
-    pause();
-  }
-});
 
 boot().catch((err) => {
   console.error(err);

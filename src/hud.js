@@ -72,16 +72,20 @@ export function createHud() {
     if (!el) return;
     let lastTime = 0;
     const trigger = (e) => {
+      if (el.disabled || el.classList.contains('hidden')) return;
+      if (e.cancelable && (e.type === 'touchend' || e.type === 'touchstart')) {
+        e.preventDefault();
+      }
       e.stopPropagation();
       const now = Date.now();
-      if (now - lastTime < 300) return;
+      if (now - lastTime < 450) return;
       lastTime = now;
       fn(e);
     };
     el.addEventListener('click', trigger);
-    el.addEventListener('touchend', trigger);
+    el.addEventListener('touchend', trigger, { passive: false });
     el.addEventListener('pointerdown', (e) => e.stopPropagation());
-    el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+    el.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: false });
   }
 
   function onStart(fn) {
