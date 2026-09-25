@@ -49,7 +49,22 @@ const WALK_STATUS = '[WASD] walk · [Shift] run · [Space] jump · [Esc] pause';
 const DRONE_STATUS = '[WASD] fly · [Space / Tab] rise · [Shift] descend · [Mouse] look · [Esc] pause';
 const BOAT_STATUS = '[W/S] throttle · [A/D] turn · [F] leave boat · [Esc] pause';
 
+let gameSessionStarted = false;
+
 function menuBody() {
+  const st = game ? game.state() : null;
+  const inProgress = gameSessionStarted && st;
+  const level = st ? st.level : 1;
+  const foundCount = st ? st.found.length : 0;
+  if (inProgress) {
+    return `<div class="gift-hunt-banner">
+        <div class="gift-hunt-title">🎁 Level ${level} in Progress · ${foundCount}/11 Gifts</div>
+        <div class="gift-hunt-desc">Your journey is saved! Tap PLAY GAME to return directly to where you were exploring.</div>
+      </div>
+      <div style="margin-top: 14px; text-align: center;">
+        <button id="menu-restart-btn" type="button" style="background: rgba(255, 60, 60, 0.15); border: 1px solid rgba(255, 120, 120, 0.4); border-radius: 999px; color: #ffcccc; font-size: 12px; font-weight: 600; cursor: pointer; padding: 6px 16px;">↺ Reset Progress & Restart Level 1</button>
+      </div>`;
+  }
   return `<div class="gift-hunt-banner">
       <div class="gift-hunt-title">🎁 5 Levels · 55 Hidden Spiritual Gifts!</div>
       <div class="gift-hunt-desc">Fly across Mayapur, discover gifts on high spires, river boats, moving kirtan dancers, and Srila Prabhupada!</div>
@@ -1087,6 +1102,7 @@ async function boot() {
     'PLAY GAME',
     { modeChoice: false },
   );
+  bindMenuRestartButton();
   phase = 'menu';
 
   const tx = ENTRANCE.doorX;
@@ -1175,6 +1191,7 @@ function startPlay(kind, { resume = false } = {}) {
   hud.showOverlay(false);
   hud.showHud(true);
   phase = 'playing';
+  gameSessionStarted = true;
 
   // Increment pilgrim count on first actual entry into temple / game
   if (!resume) {
@@ -1274,41 +1291,38 @@ function pause() {
   phase = 'paused';
   needsRender = true;
   player.state.enabled = false;
-  // pause() keeps the drone's intro flight so it can continue after resume.
+  // pause() keeps the drone's position and flight state so it can continue after resume.
   drone.pause();
   boat.pause();
   if (touchControls) touchControls.setVisible(false);
+  const st = game ? game.state() : null;
+  const level = st ? st.level : 1;
+  const found = st ? st.found.length : 0;
   const body =
-    mode === 'boat'
+    `<p style="margin-bottom: 8px; font-weight: 700; color: #ffe899;">🎁 Level ${level} · ${found}/11 Gifts Found</p>` +
+    (mode === 'boat'
       ? '<p>The boat waits on the Ganga. Tap Resume to keep riding, or Exit to Menu to return.</p>'
-      : '<p>The drone is hovering. Tap Resume to keep flying, or Exit to Menu to return.</p>';
+      : '<p>The drone is hovering. Tap Resume to keep flying, or Exit to Menu to return.</p>');
   hud.showOverlay(true, 'Paused', body, 'Resume', { modeChoice: true, droneButtonText: 'Exit to Menu' });
 }
 
-function returnToEntrance() {
+function returnToMenu() {
   phase = 'menu';
   needsRender = true;
   player.state.enabled = false;
-  // A deliberate exit resets everything: the drone replays its intro and the boat
-  // returns to the ghat.
-  player.reset();
-  drone.deactivate();
-  boat.exit();
-  boat.resetToSpawn();
+  // Keep the drone & boat exactly where they are; do not deactivate or reset to spawn.
+  drone.pause();
+  boat.pause();
   boatNear = false;
   boatHintShown = false;
   if (hud.showBoatPrompt) hud.showBoatPrompt(false);
-  // A deliberate exit to the entrance wipes the gift hunt; pausing and
-  // resuming (or switching tabs) keeps all progress.
-  if (game) game.reset();
+  // Do NOT wipe game progress or reset levels/gifts!
   if (arati) arati.stop();
   if (blessing) blessing.stop();
-  // Leaving the game silences everything: kirtan pauses and the WebAudio
-  // context is suspended so the rain/thunder ambience stops too.
+  // Leaving to menu pauses audio
   youtubeMusic.pause();
   suspendAudio();
   musicNeedsNewTrack = true;
-  // On phones, exiting leaves the immersive landscape game mode.
   exitImmersiveMode();
   hud.showHud(false);
   hud.setButtonEnabled(true);
@@ -1319,6 +1333,31 @@ function returnToEntrance() {
     'PLAY GAME',
     { modeChoice: false },
   );
+  bindMenuRestartButton();
+}
+
+function returnToEntrance() {
+  returnToMenu();
+}
+
+function bindMenuRestartButton() {
+  setTimeout(() => {
+    const btn = document.getElementById('menu-restart-btn');
+    if (!btn) return;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      if (confirm('Start over from Level 1? All current progress will be reset.')) {
+        if (game) game.reset();
+        player.reset();
+        drone.deactivate();
+        drone.state.started = false;
+        gameSessionStarted = false;
+        mode = 'drone';
+        hud.showOverlay(true, 'ISKCON Mayapur', menuBody(), 'PLAY GAME', { modeChoice: false });
+        bindMenuRestartButton();
+      }
+    };
+  }, 60);
 }
 
 function enterBoat() {
@@ -1331,7 +1370,7 @@ function enterBoat() {
   hud.setStatus(BOAT_STATUS);
   const found = game ? game.state().found : [];
   if (!found.includes('ganga-middle')) {
-    hud.setGameHint('🎁 Gift Hunt during the boat ride — a gift floats in the middle of the Ganga, follow the golden light', 11000);
+    hud.setGameHint('🎁 Gift Hunt during the boat ride — look closely for a sacred gift floating on the Ganga!', 11000);
   }
   if (document.pointerLockElement) document.exitPointerLock();
 }
@@ -1515,20 +1554,21 @@ if (isTouchDevice()) {
 hud.onStart(() => {
   if (phase === 'menu' || phase === 'paused') {
     enterImmersiveMode();
-    // After a deliberate exit, start a fresh random track.
+    // After returning from menu, start a fresh track if needed
     if (musicNeedsNewTrack) {
       musicNeedsNewTrack = false;
       youtubeMusic.requestNewTrack();
     }
     youtubeMusic.play();
-    // Start or resume drone game mode
-    startPlay(phase === 'paused' ? mode : 'drone', { resume: phase === 'paused' });
+    const shouldResume = phase === 'paused' || (gameSessionStarted && drone.state.started);
+    startPlay(mode || 'drone', { resume: shouldResume });
+    gameSessionStarted = true;
   }
 });
 
 hud.onDrone(() => {
   if (phase === 'paused') {
-    returnToEntrance();
+    returnToMenu();
   } else if (phase === 'menu') {
     enterImmersiveMode();
     if (musicNeedsNewTrack) {
@@ -1536,7 +1576,9 @@ hud.onDrone(() => {
       youtubeMusic.requestNewTrack();
     }
     youtubeMusic.play();
-    startPlay('drone');
+    const shouldResume = gameSessionStarted && drone.state.started;
+    startPlay(mode || 'drone', { resume: shouldResume });
+    gameSessionStarted = true;
   }
 });
 

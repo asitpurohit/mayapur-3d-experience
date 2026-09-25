@@ -481,7 +481,6 @@ function buildLevelConfigs(villagePoints, farmPoints, temple) {
           z: RIVER.z,
           y: RIVER.y + 1.0,
           boatOnly: true,
-          beacon: true,
         },
         {
           id: 'l1-ganga-boat',
@@ -510,21 +509,18 @@ function buildLevelConfigs(villagePoints, farmPoints, temple) {
           mount: 'avatar',
           mountOffset: { x: 0.75, y: 1.25, z: 0.25 },
           fallback: { x: ENTRANCE.doorX, y: 18, z: 120 },
-          beacon: true,
         },
         {
           id: 'l2-ratha-cart',
           mount: 'terrain-orbit',
           mountOffset: { x: 0, y: 14.5, z: 0 },
           fallback: { x: -60, y: 18, z: 135 },
-          beacon: true,
         },
         {
           id: 'l2-temple-dome-pinnacle',
           x: templeCenter.x,
           z: templeCenter.z,
           y: temple.maxY + 14,
-          beacon: true,
         },
         { id: 'l2-ghat-canopy', x: -370, y: 16.5, z: -215 },
         {
@@ -554,19 +550,17 @@ function buildLevelConfigs(villagePoints, farmPoints, temple) {
           mount: 'kirtan-followers-village',
           mountOffset: { x: 0, y: 4.2, z: 0 },
           fallback: { x: 128, z: -12, y: 6 },
-          beacon: true,
         },
         { id: 'l3-temple-east-balcony', x: temple.maxX + 2, y: 56, z: templeCenter.z },
         { id: 'l3-temple-west-balcony', x: temple.minX - 2, y: 56, z: templeCenter.z },
         { id: 'l3-temple-flag', x: ENTRANCE.doorX, y: 46, z: 130 },
-        { id: 'l3-city-tower', x: 380, y: 38, z: -240, beacon: true },
+        { id: 'l3-city-tower', x: 380, y: 38, z: -240 },
         {
           id: 'l3-river-delta-buoy',
           x: -480,
           y: RIVER.y + 1.0,
           z: RIVER.z - 30,
           boatOnly: true,
-          beacon: true,
         },
         { ...farm(1, 15, -15), id: 'l3-goshala-cows', lift: 1.1 },
         { id: 'l3-dancer-west-figure', x: 48, y: 14.5, z: 104 },
@@ -588,7 +582,6 @@ function buildLevelConfigs(villagePoints, farmPoints, temple) {
           mount: 'avatar',
           mountOffset: { x: -0.65, y: 1.25, z: -0.2 },
           fallback: { x: ENTRANCE.doorX, y: 39, z: 75 },
-          beacon: true,
         },
         {
           id: 'l4-ratha-crest',
@@ -630,21 +623,18 @@ function buildLevelConfigs(villagePoints, farmPoints, temple) {
           x: templeCenter.x,
           y: temple.maxY + 22,
           z: templeCenter.z,
-          beacon: true,
         },
         {
           id: 'l5-prabhupada',
           mount: 'avatar',
           mountOffset: { x: 0, y: 1.8, z: 0 },
           fallback: { x: ENTRANCE.doorX, y: 25, z: 100 },
-          beacon: true,
         },
         {
           id: 'l5-ratha-apex',
           mount: 'terrain-orbit',
           mountOffset: { x: 0, y: 18.2, z: 0 },
           fallback: { x: -60, y: 22, z: 135 },
-          beacon: true,
         },
         {
           id: 'l5-cruise-ship-deck',
@@ -665,7 +655,6 @@ function buildLevelConfigs(villagePoints, farmPoints, temple) {
           y: RIVER.y + 1.1,
           z: RIVER.z - 75,
           boatOnly: true,
-          beacon: true,
         },
         { id: 'l5-gurukul-sanctum-court', x: GURUKUL.x, y: 12.5, z: GURUKUL.z },
         { ...farm(0, -18, -14), id: 'l5-farms-sacred-grove', lift: 1.2 },
@@ -1055,11 +1044,6 @@ export function createGame({
         gift.z = fallback.z;
         group.position.set(gift.x, gift.y, gift.z);
         group.visible = !gift.collected;
-        if (spot.beacon) {
-          const beacon = makeBeacon();
-          group.add(beacon);
-          gift.beacon = beacon;
-        }
         scene.add(group);
         return gift;
       }
@@ -1067,11 +1051,6 @@ export function createGame({
       const y = spot.y != null ? spot.y : groundHeightAt(spot.x, spot.z) + (spot.lift != null ? spot.lift : 1);
       group.position.set(spot.x, y, spot.z);
       group.visible = !gift.collected;
-      if (spot.beacon) {
-        const beacon = makeBeacon();
-        group.add(beacon);
-        gift.beacon = beacon;
-      }
       scene.add(group);
       gift.x = spot.x;
       gift.y = y;
