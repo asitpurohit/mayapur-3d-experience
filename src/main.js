@@ -187,7 +187,7 @@ function setSplashProgress(percent, item, { fromCache = false } = {}) {
     if (fromCache) {
       sublabel.textContent = '⚡ Loading from local cache… almost ready!';
     } else {
-      sublabel.textContent = '⏳ Streaming 3D temple & assets from CDN…';
+      sublabel.textContent = '⚡ Streaming Temple & Lord Narsimhadev first… game starts soon!';
     }
   }
   motionGraphic.setProgress(clamped, item, { fromCache });
@@ -800,16 +800,17 @@ if (avatar) {
 
 }
 
-// All models load upfront before the game starts. The progress bar covers the
-// wait. On repeat visits everything comes from the browser cache so it's instant.
-const PROGRESSIVE_LOADING = false;
+// Progressive streaming: stream the essential models (temple and Lord Narsimhadev)
+// first to start the game fast. Remaining models stream in during gameplay.
+const PROGRESSIVE_LOADING = true;
 
-// Models loaded after the first paint, in priority order.
+// Models loaded in the background after the game starts, in priority order.
 const DEFERRED_MODEL_GROUPS = [
-  ['standin-temple'],
+  ['guru'],
+  ['avatar'],
   ['terrain-figure'],
-  ['terrain-orbit'],
-  ['kirtan-followers'],
+  ['terrain-orbit', 'kirtan-followers'],
+  ['standin-temple'],
 ];
 
 // Walkable temple floor meshes.
@@ -828,6 +829,12 @@ async function loadDeferredModels(scene, glbs) {
       });
       if (!loaded.length) continue;
       glbs.push(...loaded);
+      if (window.__hill) {
+        window.__hill.avatar = glbs.find((o) => o.name === 'avatar') || null;
+      }
+      if (player && glbs.some((o) => o.name === 'avatar')) {
+        player.state.thirdPerson = true;
+      }
 
       // The temple usually arrives here (streamed after first paint). Build
       // its walkable collision in small slices so phones never freeze.
@@ -931,7 +938,7 @@ async function boot() {
     : await loadGlbModels({
         scene,
         groundHeightAt,
-        names: PROGRESSIVE_LOADING ? ['mayapur-temple', 'narshima', 'guru', 'avatar'] : null,
+        names: PROGRESSIVE_LOADING ? ['mayapur-temple', 'narshima'] : null,
         onLog: (msg) => glbNotes.push(msg),
         onProgress: ({ item, percent, fromCache }) => {
           // Size and device-cache details stay silent; caching happens behind

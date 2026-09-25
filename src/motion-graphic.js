@@ -249,7 +249,7 @@ export function createMotionGraphic({ youtubeMusic, onStartGame }) {
       if (fromCache) {
         splashSublabelEl.textContent = '⚡ Loading from local cache… almost ready!';
       } else {
-        splashSublabelEl.textContent = '⏳ Streaming 3D temple & assets from CDN…';
+        splashSublabelEl.textContent = '⚡ Streaming Temple & Lord Narsimhadev first… game starts soon!';
       }
     }
   }
